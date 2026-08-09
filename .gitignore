@@ -1,0 +1,23 @@
+# Delphi / IDE
+Win32/
+Win64/
+__history/
+*.identcache
+*.dproj.local
+*.local
+*.~*
+*.dcu
+*.exe
+*.dll
+*.bpl
+*.rsm
+*.map
+*.stat
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.vs/
+.idea/
+*.swp
+*.bak

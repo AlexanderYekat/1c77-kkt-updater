@@ -1,0 +1,1001 @@
+﻿unit kktUpdater1c77;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
+  Vcl.Grids,
+  Config, Manifest, ModuleCatalog, UpdateErt;
+
+type
+  TGridRowInfo = record
+    IbLabel: string;
+    ComponentId: string;
+    ModuleStem: string;
+    ErtPath: string;
+    LineId: string; // LineIdAtol / LineIdShtrih
+  end;
+
+  TfrmMain = class(TForm)
+    pnlPaths: TPanel;
+    lblPaths: TLabel;
+    lblZlobin: TLabel;
+    edtZlobin: TEdit;
+    btnBrowseZlobin: TButton;
+    lblStrelets: TLabel;
+    edtStrelets: TEdit;
+    btnBrowseStrelets: TButton;
+    lblSurgut: TLabel;
+    edtSurgut: TEdit;
+    btnBrowseSurgut: TButton;
+    btnDetectRegistry: TButton;
+    btnSavePaths: TButton;
+    grdUpdates: TStringGrid;
+    btnCheck: TButton;
+    btnUpdateSelected: TButton;
+    btnUpdateAll: TButton;
+    btnSnapshotWorking: TButton;
+    btnRestoreWorking: TButton;
+    lblSnapshotHint: TLabel;
+    memLog: TMemo;
+    dlgOpen: TOpenDialog;
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure btnBrowseZlobinClick(Sender: TObject);
+    procedure btnBrowseStreletsClick(Sender: TObject);
+    procedure btnBrowseSurgutClick(Sender: TObject);
+    procedure btnDetectRegistryClick(Sender: TObject);
+    procedure btnSavePathsClick(Sender: TObject);
+    procedure btnCheckClick(Sender: TObject);
+    procedure btnUpdateSelectedClick(Sender: TObject);
+    procedure btnUpdateAllClick(Sender: TObject);
+    procedure btnSnapshotWorkingClick(Sender: TObject);
+    procedure btnRestoreWorkingClick(Sender: TObject);
+  private
+    FConfig: TAppConfig;
+    FManifest: TStableManifest;
+    FHasManifest: Boolean;
+    FRows: TArray<TGridRowInfo>;
+    FShowAtol: Boolean;
+    FShowSurgut: Boolean;
+    procedure InitUiCaptions;
+    procedure InitGridHeader;
+    procedure AppendStatus(const Msg: string);
+    procedure LoadPathsFromConfig;
+    procedure ApplyPathsToConfig;
+    procedure DiscoverAndStoreLineModules(Line: TModuleLine; const IbLabel, AnchorPath: string);
+    function BrowseErt(var Edit: TEdit): Boolean;
+    function ExtFormsRootFromErtOrEmpty(const ErtPath: string): string;
+    procedure AddIbModulesFromCatalog(const IbLabel: string; Line: TModuleLine;
+      const AnchorPath: string; var Rows: TArray<TGridRowInfo>; var N: Integer);
+    procedure RebuildRows;
+    procedure RefreshGrid;
+    function ReadInstalledVersion(const ErtPath, ComponentId: string;
+      out VerText: string; out ErrText: string): Boolean;
+    function RowInChannel(const Row: TGridRowInfo; out Comp: TComponentManifest): Boolean;
+    function UpdateOneRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
+      const PreparedText: string): TUpdateErtResult;
+    procedure RunUpdates(OnlySelected: Boolean);
+    function SelectedIbContext(out IbLabel, LineId, MainPath: string): Boolean;
+    procedure ApplyPathPanelVisibility(const HasZlobin, HasStrelets, HasSurgut: Boolean);
+    procedure DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
+      FillPaths: Boolean);
+  public
+  end;
+
+var
+  frmMain: TfrmMain;
+
+implementation
+
+{$R *.dfm}
+
+uses
+  System.Generics.Collections,
+  System.IOUtils,
+  AppConsts,
+  AppPaths,
+  AppLog,
+  RegistryBases,
+  VersionParse,
+  ErtStorage,
+  WorkingSnapshot;
+
+const
+  COL_INSTANCE = 0;
+  COL_INSTALLED = 1;
+  COL_AVAILABLE = 2;
+  COL_STATE = 3;
+
+function ReadExeFileVersion: string;
+var
+  InfoSize, Dummy: DWORD;
+  Buffer: Pointer;
+  Fixed: PVSFixedFileInfo;
+  Len: UINT;
+begin
+  Result := '';
+  InfoSize := GetFileVersionInfoSize(PChar(ParamStr(0)), Dummy);
+  if InfoSize = 0 then
+    Exit;
+  GetMem(Buffer, InfoSize);
+  try
+    if not GetFileVersionInfo(PChar(ParamStr(0)), 0, InfoSize, Buffer) then
+      Exit;
+    if VerQueryValue(Buffer, '\', Pointer(Fixed), Len) and (Fixed <> nil) then
+      Result := Format('%d.%d.%d.%d', [
+        HiWord(Fixed.dwFileVersionMS),
+        LoWord(Fixed.dwFileVersionMS),
+        HiWord(Fixed.dwFileVersionLS),
+        LoWord(Fixed.dwFileVersionLS)]);
+  finally
+    FreeMem(Buffer);
+  end;
+end;
+
+function AppVersionCaption: string;
+var
+  Ver: string;
+begin
+  Ver := ReadExeFileVersion;
+  if Ver = '' then
+    Ver := AppVersion;
+  Result := AppName + '  v' + Ver;
+end;
+
+procedure TfrmMain.FormCreate(Sender: TObject);
+var
+  Err: string;
+  HasZ, HasS, HasG: Boolean;
+begin
+  Caption := AppVersionCaption;
+  InitUiCaptions;
+  EnsureAppDirectories;
+  InitGridHeader;
+  FHasManifest := False;
+  FManifest.Init;
+  FShowAtol := True;
+  FShowSurgut := True;
+  SetLength(FRows, 0);
+
+  if not LoadOrCreateConfig(FConfig, Err) then
+  begin
+    AppendStatus('Ошибка config: ' + Err);
+    FConfig := TAppConfig.Create;
+  end
+  else
+    AppendStatus('Конфиг: ' + ConfigFilePath);
+
+  LoadPathsFromConfig;
+  DetectBasesInRegistry(HasZ, HasS, HasG, False);
+  ApplyPathPanelVisibility(HasZ, HasS, HasG);
+  RefreshGrid;
+  LogInfo('Updater started');
+end;
+
+procedure TfrmMain.InitUiCaptions;
+begin
+  lblPaths.Caption := 'Пути модулей (локальный конфиг)';
+  lblZlobin.Caption := LabelZlobin + ' (ATOL)';
+  lblStrelets.Caption := LabelStrelets + ' (ATOL)';
+  lblSurgut.Caption := LabelSurgut + ' (Штрих)';
+  btnBrowseZlobin.Caption := 'Обзор...';
+  btnBrowseStrelets.Caption := 'Обзор...';
+  btnBrowseSurgut.Caption := 'Обзор...';
+  btnDetectRegistry.Caption := 'Найти базы в реестре';
+  btnSavePaths.Caption := 'Сохранить пути';
+  btnCheck.Caption := 'Проверить обновления';
+  btnUpdateSelected.Caption := 'Обновить выбранное';
+  btnUpdateAll.Caption := 'Обновить всё';
+  btnSnapshotWorking.Caption := 'Снимок базы';
+  btnSnapshotWorking.Hint :=
+    'Строка в таблице выбирает только базу (Злобин/Стрелец/Сургут).'#13#10 +
+    'В снимок попадают все ERT из ModuleCatalog этой базы + 1Cv7.MD (MD только архив).';
+  btnSnapshotWorking.ShowHint := True;
+  btnRestoreWorking.Caption := 'Откат снимка базы';
+  btnRestoreWorking.Hint :=
+    'Восстанавливает все ERT из снимка выбранной базы. 1Cv7.MD не восстанавливается.';
+  btnRestoreWorking.ShowHint := True;
+  if Assigned(lblSnapshotHint) then
+    lblSnapshotHint.Caption :=
+      'Снимок/откат: выделите любую строку нужной базы — сохранится весь набор модулей, не только выделенный файл.';
+  dlgOpen.Title := 'Выберите файл ERT';
+  dlgOpen.Filter := 'ERT|*.ert|Все файлы|*.*';
+end;
+
+procedure TfrmMain.FormDestroy(Sender: TObject);
+begin
+  FManifest.Clear;
+  FConfig.Free;
+end;
+
+procedure TfrmMain.InitGridHeader;
+begin
+  grdUpdates.ColCount := 4;
+  grdUpdates.RowCount := 2;
+  grdUpdates.FixedRows := 1;
+  grdUpdates.FixedCols := 0;
+  grdUpdates.Options := grdUpdates.Options + [goRowSelect, goThumbTracking] - [goRangeSelect];
+  grdUpdates.Cells[COL_INSTANCE, 0] := 'Экземпляр / модуль';
+  grdUpdates.Cells[COL_INSTALLED, 0] := 'Установлено';
+  grdUpdates.Cells[COL_AVAILABLE, 0] := 'Доступно';
+  grdUpdates.Cells[COL_STATE, 0] := 'Состояние';
+  grdUpdates.ColWidths[COL_INSTANCE] := 340;
+  grdUpdates.ColWidths[COL_INSTALLED] := 150;
+  grdUpdates.ColWidths[COL_AVAILABLE] := 140;
+  grdUpdates.ColWidths[COL_STATE] := 200;
+end;
+
+procedure TfrmMain.AppendStatus(const Msg: string);
+begin
+  memLog.Lines.Add(FormatDateTime('hh:nn:ss', Now) + '  ' + Msg);
+  LogInfo(Msg);
+end;
+
+procedure TfrmMain.LoadPathsFromConfig;
+begin
+  edtZlobin.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelZlobin);
+  edtStrelets.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelStrelets);
+  edtSurgut.Text := FConfig.GetInstancePath(ComponentShtrihModule, LabelSurgut);
+end;
+
+procedure TfrmMain.DiscoverAndStoreLineModules(Line: TModuleLine;
+  const IbLabel, AnchorPath: string);
+var
+  Root: string;
+  Entry: TModuleCatalogEntry;
+  Path, ConfigPath: string;
+begin
+  Root := ExtFormsRootFromErtOrEmpty(AnchorPath);
+  for Entry in ModulesForLine(Line) do
+  begin
+    ConfigPath := FConfig.GetInstancePath(Entry.ComponentId, IbLabel);
+    if SameText(Entry.ComponentId, ComponentAtolModule) or
+       SameText(Entry.ComponentId, ComponentShtrihModule) then
+      Path := ResolveModulePath(Root, AnchorPath, Entry)
+    else
+      Path := ResolveModulePath(Root, ConfigPath, Entry);
+
+    // Не затираем сохранённый путь пустым, если файл временно не найден
+    if Trim(Path) <> '' then
+      FConfig.SetInstancePath(Entry.ComponentId, IbLabel, Path)
+    else if Trim(ConfigPath) = '' then
+      FConfig.SetInstancePath(Entry.ComponentId, IbLabel, '');
+  end;
+end;
+
+procedure TfrmMain.ApplyPathsToConfig;
+begin
+  FConfig.SetInstancePath(ComponentAtolModule, LabelZlobin, edtZlobin.Text);
+  FConfig.SetInstancePath(ComponentAtolModule, LabelStrelets, edtStrelets.Text);
+  FConfig.SetInstancePath(ComponentShtrihModule, LabelSurgut, edtSurgut.Text);
+
+  if FShowAtol then
+  begin
+    DiscoverAndStoreLineModules(mlAtol, LabelZlobin, Trim(edtZlobin.Text));
+    DiscoverAndStoreLineModules(mlAtol, LabelStrelets, Trim(edtStrelets.Text));
+  end;
+  if FShowSurgut then
+    DiscoverAndStoreLineModules(mlShtrih, LabelSurgut, Trim(edtSurgut.Text));
+end;
+
+function TfrmMain.BrowseErt(var Edit: TEdit): Boolean;
+begin
+  Result := False;
+  dlgOpen.FileName := Edit.Text;
+  if dlgOpen.Execute then
+  begin
+    Edit.Text := dlgOpen.FileName;
+    Result := True;
+  end;
+end;
+
+function TfrmMain.ExtFormsRootFromErtOrEmpty(const ErtPath: string): string;
+var
+  Dir, Parent, Leaf: string;
+begin
+  Result := '';
+  if Trim(ErtPath) = '' then
+    Exit;
+  Dir := ExcludeTrailingPathDelimiter(ExtractFilePath(ErtPath));
+  Leaf := TPath.GetFileName(Dir);
+  if SameText(Leaf, 'Equip') then
+  begin
+    Parent := ExcludeTrailingPathDelimiter(ExtractFilePath(Dir));
+    if SameText(TPath.GetFileName(Parent), 'ExtForms') then
+      Exit(Parent);
+  end;
+  if SameText(Leaf, 'ExtForms') then
+    Exit(Dir);
+  Result := '';
+end;
+
+procedure TfrmMain.AddIbModulesFromCatalog(const IbLabel: string; Line: TModuleLine;
+  const AnchorPath: string; var Rows: TArray<TGridRowInfo>; var N: Integer);
+var
+  Root: string;
+  Entry: TModuleCatalogEntry;
+  Row: TGridRowInfo;
+  Path, ConfigPath: string;
+begin
+  Root := ExtFormsRootFromErtOrEmpty(AnchorPath);
+  for Entry in ModulesForLine(Line) do
+  begin
+    ConfigPath := FConfig.GetInstancePath(Entry.ComponentId, IbLabel);
+    if SameText(Entry.ComponentId, ComponentAtolModule) or
+       SameText(Entry.ComponentId, ComponentShtrihModule) then
+      Path := ResolveModulePath(Root, AnchorPath, Entry)
+    else
+      Path := ResolveModulePath(Root, ConfigPath, Entry);
+
+    // Показываем строку, если есть путь/якорь ИБ или файл найден рядом
+    if (Trim(AnchorPath) = '') and (Trim(Path) = '') then
+      Continue;
+
+    Row.IbLabel := IbLabel;
+    Row.ComponentId := Entry.ComponentId;
+    Row.ModuleStem := Entry.FileStem;
+    Row.ErtPath := Path;
+    Row.LineId := LineIdOf(Line);
+    SetLength(Rows, N + 1);
+    Rows[N] := Row;
+    Inc(N);
+  end;
+end;
+
+procedure TfrmMain.RebuildRows;
+var
+  Rows: TArray<TGridRowInfo>;
+  N: Integer;
+begin
+  SetLength(Rows, 0);
+  N := 0;
+
+  if FShowAtol then
+  begin
+    AddIbModulesFromCatalog(LabelZlobin, mlAtol, Trim(edtZlobin.Text), Rows, N);
+    AddIbModulesFromCatalog(LabelStrelets, mlAtol, Trim(edtStrelets.Text), Rows, N);
+  end;
+  if FShowSurgut then
+    AddIbModulesFromCatalog(LabelSurgut, mlShtrih, Trim(edtSurgut.Text), Rows, N);
+
+  FRows := Rows;
+end;
+
+function TfrmMain.ReadInstalledVersion(const ErtPath, ComponentId: string;
+  out VerText: string; out ErrText: string): Boolean;
+var
+  Text: string;
+  Id: TModuleIdentity;
+  LegacyVer: string;
+  Entry: TModuleCatalogEntry;
+begin
+  Result := False;
+  VerText := '—';
+  ErrText := '';
+  if Trim(ErtPath) = '' then
+    Exit;
+  if not TFile.Exists(ErtPath) then
+  begin
+    VerText := 'файл не найден';
+    Exit;
+  end;
+  try
+    Text := ReadErtModuleText(ErtPath);
+    Id := ExtractModuleIdentity(Text);
+    if Id.HasComponent and Id.HasVersion then
+    begin
+      VerText := Id.VersionRaw;
+      Result := True;
+      Exit;
+    end;
+
+    if TryFindModuleById(ComponentId, Entry) and
+       HasAnyLegacyStemVerMarker(Text, Entry.LegacyStems, LegacyVer) then
+    begin
+      VerText := LegacyVer + ' (legacy)';
+      Result := True;
+      Exit;
+    end;
+
+    if Id.HasVersion then
+      VerText := 'нет version'
+    else
+      VerText := 'нет version';
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      VerText := 'ошибка чтения';
+      ErrText := E.Message;
+    end;
+  end;
+end;
+
+function TfrmMain.RowInChannel(const Row: TGridRowInfo;
+  out Comp: TComponentManifest): Boolean;
+begin
+  Comp := Default(TComponentManifest);
+  Result := FHasManifest and FManifest.TryGet(Row.ComponentId, Comp);
+end;
+
+procedure TfrmMain.RefreshGrid;
+var
+  R, GridRow: Integer;
+  Ver, Err, Available, State, InstalledClean: string;
+  Comp: TComponentManifest;
+  InChannel: Boolean;
+  Cmp: Integer;
+begin
+  RebuildRows;
+  if Length(FRows) = 0 then
+    grdUpdates.RowCount := 2
+  else
+    grdUpdates.RowCount := Length(FRows) + 1;
+
+  for R := 0 to High(FRows) do
+  begin
+    GridRow := R + 1;
+    grdUpdates.Cells[COL_INSTANCE, GridRow] :=
+      FRows[R].IbLabel + ' / ' + FRows[R].ModuleStem;
+
+    ReadInstalledVersion(FRows[R].ErtPath, FRows[R].ComponentId, Ver, Err);
+    grdUpdates.Cells[COL_INSTALLED, GridRow] := Ver;
+
+    InChannel := RowInChannel(FRows[R], Comp);
+    if InChannel then
+      Available := Comp.Version
+    else
+      Available := '—';
+    grdUpdates.Cells[COL_AVAILABLE, GridRow] := Available;
+
+    if Trim(FRows[R].ErtPath) = '' then
+      State := 'нет пути'
+    else if SameText(Ver, 'файл не найден') then
+      State := 'файл не найден'
+    else if SameText(Ver, 'ошибка чтения') then
+      State := 'ошибка'
+    else if SameText(Ver, 'нет version') then
+      State := 'версия не задана'
+    else if not FHasManifest then
+      State := 'не проверен'
+    else if not InChannel then
+      State := 'нет в канале'
+    else
+    begin
+      InstalledClean := StringReplace(Ver, ' (legacy)', '', []);
+      Cmp := CompareVersionStrings(Available, InstalledClean);
+      if Cmp > 0 then
+        State := 'обновление'
+      else if Cmp = 0 then
+        State := 'актуально'
+      else
+        State := 'локальная версия новее';
+    end;
+    grdUpdates.Cells[COL_STATE, GridRow] := State;
+
+    if Err <> '' then
+      AppendStatus(FRows[R].IbLabel + '/' + FRows[R].ModuleStem + ': ' + Err);
+  end;
+end;
+
+procedure TfrmMain.btnBrowseZlobinClick(Sender: TObject);
+begin
+  if BrowseErt(edtZlobin) then
+    RefreshGrid;
+end;
+
+procedure TfrmMain.btnBrowseStreletsClick(Sender: TObject);
+begin
+  if BrowseErt(edtStrelets) then
+    RefreshGrid;
+end;
+
+procedure TfrmMain.btnBrowseSurgutClick(Sender: TObject);
+begin
+  if BrowseErt(edtSurgut) then
+    RefreshGrid;
+end;
+
+procedure TfrmMain.ApplyPathPanelVisibility(const HasZlobin, HasStrelets, HasSurgut: Boolean);
+var
+  ShowAtol, ShowSurgut: Boolean;
+  RowTop: Integer;
+const
+  RowH = 29;
+  FirstRowTop = 25;
+begin
+  ShowAtol := not (HasSurgut and (not HasZlobin) and (not HasStrelets));
+  ShowSurgut := not (HasZlobin and HasStrelets and (not HasSurgut));
+
+  FShowAtol := ShowAtol;
+  FShowSurgut := ShowSurgut;
+
+  lblZlobin.Visible := ShowAtol;
+  edtZlobin.Visible := ShowAtol;
+  btnBrowseZlobin.Visible := ShowAtol;
+  lblStrelets.Visible := ShowAtol;
+  edtStrelets.Visible := ShowAtol;
+  btnBrowseStrelets.Visible := ShowAtol;
+
+  lblSurgut.Visible := ShowSurgut;
+  edtSurgut.Visible := ShowSurgut;
+  btnBrowseSurgut.Visible := ShowSurgut;
+
+  RowTop := FirstRowTop;
+  if ShowAtol then
+  begin
+    lblZlobin.Top := RowTop + 3;
+    edtZlobin.Top := RowTop;
+    btnBrowseZlobin.Top := RowTop - 1;
+    Inc(RowTop, RowH);
+    lblStrelets.Top := RowTop + 3;
+    edtStrelets.Top := RowTop;
+    btnBrowseStrelets.Top := RowTop - 1;
+    Inc(RowTop, RowH);
+  end;
+  if ShowSurgut then
+  begin
+    lblSurgut.Top := RowTop + 3;
+    edtSurgut.Top := RowTop;
+    btnBrowseSurgut.Top := RowTop - 1;
+    Inc(RowTop, RowH);
+  end;
+
+  btnDetectRegistry.Top := RowTop + 4;
+  btnSavePaths.Top := RowTop + 4;
+  pnlPaths.Height := RowTop + 34;
+  grdUpdates.Top := pnlPaths.Top + pnlPaths.Height + 8;
+  if grdUpdates.Top < 410 then
+    grdUpdates.Height := 410 - grdUpdates.Top;
+end;
+
+procedure TfrmMain.DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
+  FillPaths: Boolean);
+var
+  Items: TIbInfoArray;
+  Err: string;
+  Info: TIbInfo;
+  Candidates: TArray<string>;
+  Best: string;
+begin
+  HasZlobin := False;
+  HasStrelets := False;
+  HasSurgut := False;
+
+  if FindAtolBases(Items, Err) then
+  begin
+    for Info in Items do
+    begin
+      if SameText(Info.MatchedLabel, LabelZlobin) then
+      begin
+        HasZlobin := True;
+        if FillPaths then
+        begin
+          Candidates := SuggestErtCandidates(Info.Path, DefaultAtolErtFileName);
+          Best := PickBestErtCandidate(Candidates);
+          if Best <> '' then
+          begin
+            edtZlobin.Text := Best;
+            AppendStatus('Злобин: ' + Info.Title + ' → ' + Best);
+          end
+          else
+            AppendStatus('Злобин: ' + Info.Title + ' — frATOL54_comm.ert не найден');
+        end;
+      end
+      else if SameText(Info.MatchedLabel, LabelStrelets) then
+      begin
+        HasStrelets := True;
+        if FillPaths then
+        begin
+          Candidates := SuggestErtCandidates(Info.Path, DefaultAtolErtFileName);
+          Best := PickBestErtCandidate(Candidates);
+          if Best <> '' then
+          begin
+            edtStrelets.Text := Best;
+            AppendStatus('Стрелец: ' + Info.Title + ' → ' + Best);
+          end
+          else
+            AppendStatus('Стрелец: ' + Info.Title + ' — frATOL54_comm.ert не найден');
+        end;
+      end;
+    end;
+  end
+  else if FillPaths then
+    AppendStatus('ATOL: ' + Err);
+
+  if FindSurgutBases(Items, Err) then
+  begin
+    for Info in Items do
+    begin
+      HasSurgut := True;
+      if FillPaths then
+      begin
+        Candidates := SuggestErtCandidates(Info.Path, DefaultShtrihErtFileName);
+        Best := PickBestShtrihErtCandidate(Candidates);
+        if Best <> '' then
+        begin
+          edtSurgut.Text := Best;
+          AppendStatus('Сургут: ' + Info.Title + ' → ' + Best);
+        end
+        else
+          AppendStatus('Сургут: ' + Info.Title + ' — fr_elves-12.ert не найден');
+      end;
+    end;
+  end
+  else if FillPaths then
+    AppendStatus('Сургут: ' + Err);
+end;
+
+procedure TfrmMain.btnDetectRegistryClick(Sender: TObject);
+var
+  HasZ, HasS, HasG: Boolean;
+begin
+  DetectBasesInRegistry(HasZ, HasS, HasG, True);
+  ApplyPathPanelVisibility(HasZ, HasS, HasG);
+  ApplyPathsToConfig;
+  RefreshGrid;
+
+  if not HasZ and not HasS and not HasG then
+    MessageDlg(
+      'Базы Злобин/Стрелец/Сургут в Titles не найдены.',
+      mtInformation, [mbOK], 0);
+end;
+
+procedure TfrmMain.btnSavePathsClick(Sender: TObject);
+var
+  Err: string;
+begin
+  ApplyPathsToConfig;
+  if SaveConfig(FConfig, Err) then
+  begin
+    AppendStatus('Пути сохранены в config.json');
+    RefreshGrid;
+  end
+  else
+  begin
+    AppendStatus('Ошибка сохранения: ' + Err);
+    MessageDlg(Err, mtError, [mbOK], 0);
+  end;
+end;
+
+procedure TfrmMain.btnCheckClick(Sender: TObject);
+var
+  Err: string;
+  Url: string;
+  Pair: TPair<string, TComponentManifest>;
+  Summary: string;
+begin
+  ApplyPathsToConfig;
+  Url := FConfig.EffectiveManifestUrl;
+  AppendStatus('Проверка: ' + Url);
+  // Освободить предыдущий словарь до загрузки (Load* считает out неинициализированным)
+  FManifest.Clear;
+  FHasManifest := LoadManifestFromUrl(Url, FManifest, Err);
+  if not FHasManifest then
+  begin
+    AppendStatus('Manifest: ' + Err);
+    MessageDlg(Err, mtError, [mbOK], 0);
+    RefreshGrid;
+    Exit;
+  end;
+  Summary := '';
+  if FManifest.Components <> nil then
+    for Pair in FManifest.Components do
+    begin
+      if Summary <> '' then
+        Summary := Summary + '; ';
+      Summary := Summary + Pair.Key + '=' + Pair.Value.Version;
+    end;
+  if Summary = '' then
+    Summary := '(пусто)';
+  AppendStatus('Доступно в канале: ' + Summary);
+  RefreshGrid;
+end;
+
+function TfrmMain.UpdateOneRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
+  const PreparedText: string): TUpdateErtResult;
+var
+  InstanceLabel: string;
+begin
+  InstanceLabel := Row.IbLabel + '/' + Row.ModuleStem;
+  LogInfo(Format('Update %s id=%s path=%s',
+    [InstanceLabel, Row.ComponentId, Row.ErtPath]));
+  Result := UpdateErtInstance(Row.ErtPath, InstanceLabel, Comp, PreparedText);
+  AppendStatus(InstanceLabel + ' [' + Row.ComponentId + ']: ' + Result.Message);
+  if Result.Locked then
+    MessageDlg(Result.Message, mtWarning, [mbOK], 0);
+end;
+
+procedure TfrmMain.RunUpdates(OnlySelected: Boolean);
+var
+  Err: string;
+  Cached: string;
+  Indices: TArray<Integer>;
+  I, RowIdx, GridRow: Integer;
+  State: string;
+  Comp: TComponentManifest;
+  PreparedById: TDictionary<string, string>;
+  FailedPrepare: TStringList;
+  OkCount, FailCount, SkipCount: Integer;
+  Row: TGridRowInfo;
+  PrepText: string;
+  Res: TUpdateErtResult;
+begin
+  ApplyPathsToConfig;
+  if not FHasManifest then
+  begin
+    MessageDlg('Сначала нажмите «Проверить обновления».', mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  SetLength(Indices, 0);
+  if OnlySelected then
+  begin
+    GridRow := grdUpdates.Row;
+    RowIdx := GridRow - 1;
+    if (RowIdx < 0) or (RowIdx > High(FRows)) then
+    begin
+      MessageDlg('Выберите строку модуля.', mtInformation, [mbOK], 0);
+      Exit;
+    end;
+    State := grdUpdates.Cells[COL_STATE, GridRow];
+    if SameText(State, 'нет в канале') then
+    begin
+      MessageDlg(
+        '«' + FRows[RowIdx].ModuleStem + '» нет в канале (stable.json). Обновление недоступно.',
+        mtInformation, [mbOK], 0);
+      Exit;
+    end;
+    if not RowInChannel(FRows[RowIdx], Comp) then
+    begin
+      MessageDlg('Компонент отсутствует в manifest.', mtInformation, [mbOK], 0);
+      Exit;
+    end;
+    if Trim(FRows[RowIdx].ErtPath) = '' then
+    begin
+      MessageDlg('Не задан путь к ERT.', mtWarning, [mbOK], 0);
+      Exit;
+    end;
+    Indices := [RowIdx];
+  end
+  else
+  begin
+    for I := 0 to High(FRows) do
+    begin
+      State := grdUpdates.Cells[COL_STATE, I + 1];
+      if SameText(State, 'обновление') and RowInChannel(FRows[I], Comp) then
+      begin
+        SetLength(Indices, Length(Indices) + 1);
+        Indices[High(Indices)] := I;
+      end;
+    end;
+  end;
+
+  if Length(Indices) = 0 then
+  begin
+    MessageDlg('Нет строк для обновления.', mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  OkCount := 0;
+  FailCount := 0;
+  SkipCount := 0;
+  PreparedById := TDictionary<string, string>.Create;
+  FailedPrepare := TStringList.Create;
+  try
+    FailedPrepare.CaseSensitive := False;
+    FailedPrepare.Sorted := True;
+    FailedPrepare.Duplicates := dupIgnore;
+
+    for I := 0 to High(Indices) do
+    begin
+      RowIdx := Indices[I];
+      Row := FRows[RowIdx];
+      State := grdUpdates.Cells[COL_STATE, RowIdx + 1];
+
+      if SameText(State, 'локальная версия новее') then
+      begin
+        AppendStatus(Row.IbLabel + '/' + Row.ModuleStem + ': downgrade запрещён — пропуск');
+        Inc(SkipCount);
+        Continue;
+      end;
+      if SameText(State, 'актуально') then
+      begin
+        AppendStatus(Row.IbLabel + '/' + Row.ModuleStem + ': уже актуально — пропуск');
+        Inc(SkipCount);
+        Continue;
+      end;
+      if not RowInChannel(Row, Comp) then
+      begin
+        AppendStatus(Row.IbLabel + '/' + Row.ModuleStem + ': нет в канале — пропуск');
+        Inc(SkipCount);
+        Continue;
+      end;
+      if FailedPrepare.IndexOf(Row.ComponentId) >= 0 then
+      begin
+        Inc(FailCount);
+        Continue;
+      end;
+
+      if not PreparedById.TryGetValue(Row.ComponentId, PrepText) then
+      begin
+        if not PrepareAssetText(Comp, PrepText, Cached, Err) then
+        begin
+          AppendStatus(Row.ComponentId + ': ' + Err);
+          FailedPrepare.Add(Row.ComponentId);
+          Inc(FailCount);
+          Continue;
+        end;
+        AppendStatus('Asset OK [' + Row.ComponentId + ']: ' + Cached);
+        PreparedById.Add(Row.ComponentId, PrepText);
+      end;
+
+      Res := UpdateOneRow(Row, Comp, PrepText);
+      if Res.Ok then
+        Inc(OkCount)
+      else if Res.SkippedDowngrade then
+        Inc(SkipCount)
+      else
+        Inc(FailCount);
+    end;
+  finally
+    PreparedById.Free;
+    FailedPrepare.Free;
+  end;
+
+  RefreshGrid;
+  AppendStatus(Format('Итог обновления: ok=%d fail=%d skip=%d',
+    [OkCount, FailCount, SkipCount]));
+end;
+
+procedure TfrmMain.btnUpdateSelectedClick(Sender: TObject);
+begin
+  RunUpdates(True);
+end;
+
+procedure TfrmMain.btnUpdateAllClick(Sender: TObject);
+begin
+  RunUpdates(False);
+end;
+
+function TfrmMain.SelectedIbContext(out IbLabel, LineId, MainPath: string): Boolean;
+var
+  RowIdx: Integer;
+begin
+  Result := False;
+  IbLabel := '';
+  LineId := '';
+  MainPath := '';
+  RowIdx := grdUpdates.Row - 1;
+  if (RowIdx >= 0) and (RowIdx <= High(FRows)) then
+  begin
+    IbLabel := FRows[RowIdx].IbLabel;
+    LineId := FRows[RowIdx].LineId;
+  end
+  else
+  begin
+    MessageDlg('Выберите любую строку нужной базы в таблице (Злобин / Стрелец / Сургут).'#13#10 +
+    'Выбор файла в строке не важен — снимок берёт весь набор модулей базы.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  if SameText(IbLabel, LabelZlobin) then
+    MainPath := Trim(edtZlobin.Text)
+  else if SameText(IbLabel, LabelStrelets) then
+    MainPath := Trim(edtStrelets.Text)
+  else if SameText(IbLabel, LabelSurgut) then
+    MainPath := Trim(edtSurgut.Text)
+  else
+    MainPath := FRows[RowIdx].ErtPath;
+
+  if Trim(MainPath) = '' then
+  begin
+    MessageDlg('Для «' + IbLabel + '» не задан путь к главному ERT.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+  Result := True;
+end;
+
+procedure TfrmMain.btnSnapshotWorkingClick(Sender: TObject);
+var
+  IbLabel, LineId, MainPath, Err, Msg, Confirm: string;
+  Info: TWorkingSnapshotInfo;
+  Item: TSnapshotFileItem;
+  ErtCount, MdCount: Integer;
+begin
+  ApplyPathsToConfig;
+  if not SelectedIbContext(IbLabel, LineId, MainPath) then
+    Exit;
+
+  Confirm :=
+    'Снимок для базы «' + IbLabel + '».' + sLineBreak + sLineBreak +
+    'Строка в таблице выбирает только базу, не один файл.' + sLineBreak +
+    'Будут сохранены все найденные ERT из ModuleCatalog этой базы + 1Cv7.MD (только архив).' +
+    sLineBreak + sLineBreak +
+    'Продолжить?';
+  if WorkingSnapshotExists(IbLabel) then
+    Confirm := Confirm + sLineBreak + sLineBreak + 'Внимание: существующий снимок будет перезаписан.';
+
+  if MessageDlg(Confirm, mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  if not CreateWorkingSnapshot(IbLabel, LineId, MainPath, Info, Err) then
+  begin
+    AppendStatus('Снимок: ' + Err);
+    MessageDlg(Err, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  ErtCount := 0;
+  MdCount := 0;
+  Msg := 'Снимок базы «' + IbLabel + '» сохранён (весь набор файлов):' + sLineBreak +
+    Info.SnapshotDir + sLineBreak + sLineBreak;
+  for Item in Info.Files do
+  begin
+    if Item.Kind = sfMd then
+    begin
+      Inc(MdCount);
+      Msg := Msg + '  [MD, только архив] ' + Item.Stem + sLineBreak;
+    end
+    else
+    begin
+      Inc(ErtCount);
+      if Item.Version = '' then
+        Msg := Msg + '  ' + Item.Stem + ' — ver: —' + sLineBreak
+      else
+        Msg := Msg + '  ' + Item.Stem + ' — ver: ' + Item.Version + sLineBreak;
+    end;
+  end;
+  Msg := Msg + sLineBreak + Format('ERT: %d, 1Cv7.MD в архиве: %d.', [ErtCount, MdCount]);
+
+  AppendStatus('Снимок рабочей OK: ' + IbLabel + ' -> ' + Info.SnapshotDir);
+  MessageDlg(Msg, mtInformation, [mbOK], 0);
+end;
+
+procedure TfrmMain.btnRestoreWorkingClick(Sender: TObject);
+var
+  IbLabel, LineId, MainPath, Err, Msg: string;
+  Info: TWorkingSnapshotInfo;
+  Item: TSnapshotFileItem;
+  N: Integer;
+begin
+  ApplyPathsToConfig;
+  if not SelectedIbContext(IbLabel, LineId, MainPath) then
+    Exit;
+
+  if not LoadWorkingSnapshotManifest(IbLabel, Info, Err) then
+  begin
+    AppendStatus('Восстановление: ' + Err);
+    MessageDlg(Err, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  Msg := 'Откат снимка базы «' + IbLabel + '» (' + Info.CreatedAt + ').' + sLineBreak +
+    'Восстанавливаются ВСЕ ERT из снимка (не только выделенная строка).' + sLineBreak +
+    '1Cv7.MD НЕ будет восстановлен.' + sLineBreak + sLineBreak;
+  for Item in Info.Files do
+    if Item.Restorable and (Item.Kind = sfErt) then
+      Msg := Msg + '  ' + Item.Stem + ' -> ' + Item.OriginalPath + sLineBreak
+    else if Item.Kind = sfMd then
+      Msg := Msg + '  [пропуск] ' + Item.Stem + sLineBreak;
+
+  if MessageDlg(Msg, mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  if not RestoreWorkingSnapshot(IbLabel, N, Err) then
+  begin
+    AppendStatus('Восстановление: ' + Err);
+    MessageDlg(Err, mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  AppendStatus(Format('Восстановлено ERT: %d (1Cv7.MD не трогали)', [N]));
+  MessageDlg(Format('Готово. Восстановлено файлов ERT: %d.'#13#10'1Cv7.MD не изменялся.', [N]),
+    mtInformation, [mbOK], 0);
+  RefreshGrid;
+end;
+
+end.
