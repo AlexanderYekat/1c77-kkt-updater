@@ -406,12 +406,25 @@ ATOL Service                        2026.08.09-02    2026.08.09-02  Актуал
 
 ### Теги
 
+Для **каждого** независимого продукта — свой тег (в одном репозитории несколько ERT не могут делить один `module-*`):
+
 ```text
-module-YYYY.MM.DD-NN
+<component-id>-YYYY.MM.DD-NN
 service-YYYY.MM.DD-NN
 proxy-YYYY.MM.DD-NN
 updater-YYYY.MM.DD-NN
 ```
+
+Примеры ERT:
+
+```text
+1c77-atol-module-2026.08.09-01
+1c77-atol-permissive_regime_2024-2026.08.09-01
+1c77-shtrih-module-2026.08.09-01
+1c77-shtrih-permissive_regime_2024-2026.08.09-01
+```
+
+Устаревшее общее `module-YYYY.MM.DD-NN` **не использовать** для новых релизов модулей.
 
 ### Assets
 

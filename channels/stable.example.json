@@ -6,9 +6,9 @@
       "type": "ert-module",
       "version": "2026.08.10-01",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "module-2026.08.10-01",
+      "tag": "1c77-atol-module-2026.08.10-01",
       "asset": "1c77-atol-module-2026.08.10-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/module-2026.08.10-01/1c77-atol-module-2026.08.10-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-module-2026.08.10-01/1c77-atol-module-2026.08.10-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     },
     "1c77-atol-permissive_regime_2024": {
@@ -16,9 +16,9 @@
       "type": "ert-module",
       "version": "2026.08.01-01",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "module-permissive-2026.08.01-01",
+      "tag": "1c77-atol-permissive_regime_2024-2026.08.01-01",
       "asset": "1c77-atol-permissive_regime_2024-2026.08.01-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/module-permissive-2026.08.01-01/1c77-atol-permissive_regime_2024-2026.08.01-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-permissive_regime_2024-2026.08.01-01/1c77-atol-permissive_regime_2024-2026.08.01-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     },
     "1c77-atol-test_check": {
@@ -26,9 +26,9 @@
       "type": "ert-module",
       "version": "2026.07.15-01",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "module-test_check-2026.07.15-01",
+      "tag": "1c77-atol-test_check-2026.07.15-01",
       "asset": "1c77-atol-test_check-2026.07.15-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/module-test_check-2026.07.15-01/1c77-atol-test_check-2026.07.15-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-test_check-2026.07.15-01/1c77-atol-test_check-2026.07.15-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     },
     "1c77-shtrih-module": {
@@ -36,9 +36,9 @@
       "type": "ert-module",
       "version": "2026.08.09-01",
       "repository": "AlexanderYekat/1c77-tspiot-shtrih",
-      "tag": "module-2026.08.09-01",
+      "tag": "1c77-shtrih-module-2026.08.09-01",
       "asset": "1c77-shtrih-module-2026.08.09-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/module-2026.08.09-01/1c77-shtrih-module-2026.08.09-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/1c77-shtrih-module-2026.08.09-01/1c77-shtrih-module-2026.08.09-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     },
     "1c77-shtrih-permissive_regime_2024": {
@@ -46,9 +46,9 @@
       "type": "ert-module",
       "version": "2026.08.01-01",
       "repository": "AlexanderYekat/1c77-tspiot-shtrih",
-      "tag": "module-permissive-2026.08.01-01",
+      "tag": "1c77-shtrih-permissive_regime_2024-2026.08.01-01",
       "asset": "1c77-shtrih-permissive_regime_2024-2026.08.01-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/module-permissive-2026.08.01-01/1c77-shtrih-permissive_regime_2024-2026.08.01-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/1c77-shtrih-permissive_regime_2024-2026.08.01-01/1c77-shtrih-permissive_regime_2024-2026.08.01-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     },
     "1c77-shtrih-fr_elves_test": {
@@ -56,9 +56,9 @@
       "type": "ert-module",
       "version": "2026.07.20-01",
       "repository": "AlexanderYekat/1c77-tspiot-shtrih",
-      "tag": "module-fr_elves_test-2026.07.20-01",
+      "tag": "1c77-shtrih-fr_elves_test-2026.07.20-01",
       "asset": "1c77-shtrih-fr_elves_test-2026.07.20-01.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/module-fr_elves_test-2026.07.20-01/1c77-shtrih-fr_elves_test-2026.07.20-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/1c77-shtrih-fr_elves_test-2026.07.20-01/1c77-shtrih-fr_elves_test-2026.07.20-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
     }
   }
