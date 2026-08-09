@@ -1,4 +1,4 @@
-unit ModuleCatalog;
+﻿unit ModuleCatalog;
 
 interface
 

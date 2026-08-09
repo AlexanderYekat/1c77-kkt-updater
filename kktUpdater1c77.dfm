@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = '1C77 KKT Updater'
-  ClientHeight = 620
-  ClientWidth = 860
+  ClientHeight = 650
+  ClientWidth = 980
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -17,7 +17,7 @@ object frmMain: TfrmMain
   object pnlPaths: TPanel
     Left = 8
     Top = 8
-    Width = 844
+    Width = 960
     Height = 152
     Anchors = [akLeft, akTop, akRight]
     BevelOuter = bvNone
@@ -40,13 +40,13 @@ object frmMain: TfrmMain
     object edtZlobin: TEdit
       Left = 80
       Top = 25
-      Width = 660
+      Width = 770
       Height = 23
       Anchors = [akLeft, akTop, akRight]
       TabOrder = 0
     end
     object btnBrowseZlobin: TButton
-      Left = 750
+      Left = 860
       Top = 24
       Width = 90
       Height = 25
@@ -65,13 +65,13 @@ object frmMain: TfrmMain
     object edtStrelets: TEdit
       Left = 80
       Top = 54
-      Width = 660
+      Width = 770
       Height = 23
       Anchors = [akLeft, akTop, akRight]
       TabOrder = 2
     end
     object btnBrowseStrelets: TButton
-      Left = 750
+      Left = 860
       Top = 53
       Width = 90
       Height = 25
@@ -90,13 +90,13 @@ object frmMain: TfrmMain
     object edtSurgut: TEdit
       Left = 80
       Top = 83
-      Width = 660
+      Width = 770
       Height = 23
       Anchors = [akLeft, akTop, akRight]
       TabOrder = 4
     end
     object btnBrowseSurgut: TButton
-      Left = 750
+      Left = 860
       Top = 82
       Width = 90
       Height = 25
@@ -127,7 +127,7 @@ object frmMain: TfrmMain
   object grdUpdates: TStringGrid
     Left = 8
     Top = 168
-    Width = 844
+    Width = 960
     Height = 240
     Anchors = [akLeft, akTop, akRight]
     ColCount = 4
@@ -140,52 +140,71 @@ object frmMain: TfrmMain
   object btnCheck: TButton
     Left = 8
     Top = 418
-    Width = 180
+    Width = 150
     Height = 28
     Caption = 'Check'
     TabOrder = 2
     OnClick = btnCheckClick
   end
   object btnUpdateSelected: TButton
-    Left = 200
+    Left = 166
     Top = 418
-    Width = 160
+    Width = 140
     Height = 28
     Caption = 'Update selected'
     TabOrder = 3
     OnClick = btnUpdateSelectedClick
   end
   object btnUpdateAll: TButton
-    Left = 372
+    Left = 314
     Top = 418
-    Width = 140
+    Width = 120
     Height = 28
     Caption = 'Update all'
     TabOrder = 4
     OnClick = btnUpdateAllClick
   end
-  object btnSnapshotWorking: TButton
-    Left = 540
+  object btnForceDowngrade: TButton
+    Left = 442
     Top = 418
     Width = 150
     Height = 28
-    Caption = 'Snapshot'
+    Caption = 'Force downgrade'
     TabOrder = 5
+    OnClick = btnForceDowngradeClick
+  end
+  object btnSnapshotWorking: TButton
+    Left = 600
+    Top = 418
+    Width = 120
+    Height = 28
+    Caption = 'Snapshot'
+    TabOrder = 6
     OnClick = btnSnapshotWorkingClick
   end
   object btnRestoreWorking: TButton
-    Left = 700
+    Left = 728
     Top = 418
-    Width = 152
+    Width = 120
     Height = 28
     Caption = 'Restore snapshot'
-    TabOrder = 6
+    TabOrder = 7
     OnClick = btnRestoreWorkingClick
+  end
+  object btnOpenSnapshots: TButton
+    Left = 856
+    Top = 418
+    Width = 110
+    Height = 28
+    Anchors = [akTop, akRight]
+    Caption = 'Open snapshots'
+    TabOrder = 8
+    OnClick = btnOpenSnapshotsClick
   end
   object lblSnapshotHint: TLabel
     Left = 8
-    Top = 450
-    Width = 844
+    Top = 452
+    Width = 960
     Height = 15
     Anchors = [akLeft, akTop, akRight]
     Caption = 'Snapshot hint'
@@ -198,16 +217,16 @@ object frmMain: TfrmMain
   end
   object memLog: TMemo
     Left = 8
-    Top = 470
-    Width = 844
-    Height = 142
+    Top = 474
+    Width = 960
+    Height = 168
     Anchors = [akLeft, akTop, akRight, akBottom]
     ReadOnly = True
     ScrollBars = ssVertical
-    TabOrder = 7
+    TabOrder = 9
   end
   object dlgOpen: TOpenDialog
-    Left = 780
+    Left = 900
     Top = 418
   end
 end

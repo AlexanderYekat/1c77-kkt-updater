@@ -1,4 +1,4 @@
-unit RegistryBases;
+﻿unit RegistryBases;
 
 interface
 
@@ -158,7 +158,7 @@ function SuggestErtCandidates(const IbPath, PreferredFileName: string): TArray<s
 var
   Roots: TArray<string>;
   Preferred: TArray<string>;
-  Root, Pref, FileName, Full: string;
+  Root, Pref, FileName: string;
   Files: TArray<string>;
   N: Integer;
   Seen: TStringList;

@@ -1,4 +1,4 @@
-unit Manifest;
+﻿unit Manifest;
 
 interface
 

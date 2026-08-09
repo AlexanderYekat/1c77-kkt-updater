@@ -1,4 +1,4 @@
-unit ErtCodec;
+﻿unit ErtCodec;
 
 interface
 

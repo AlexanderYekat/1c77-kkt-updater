@@ -1,4 +1,4 @@
-unit UpdateErt;
+﻿unit UpdateErt;
 
 interface
 
@@ -22,10 +22,12 @@ function CheckComponentGate(const ModuleText, ExpectedComponentId: string;
 function PrepareAssetText(const Comp: TComponentManifest; out ModuleText: string;
   out CachedFile: string; out ErrorMsg: string): Boolean;
 
+/// ForceDowngrade=True — разрешить запись, даже если локальная version новее канала.
 function UpdateErtInstance(
   const ErtPath, InstanceLabel: string;
   const Comp: TComponentManifest;
-  const PreparedText: string
+  const PreparedText: string;
+  ForceDowngrade: Boolean = False
 ): TUpdateErtResult;
 
 implementation
@@ -85,6 +87,14 @@ begin
     Exit;
   end;
 
+  // Старый ERT без component и без legacy ver: — разрешаем первую установку
+  // versioned-текста (путь уже выбран по stem из ModuleCatalog).
+  if not Id.HasVersion then
+  begin
+    Result := True;
+    Exit;
+  end;
+
   StemList := '';
   for Stem in Entry.LegacyStems do
   begin
@@ -94,7 +104,8 @@ begin
   end;
 
   ErrorMsg := Format(
-    'Не удалось подтвердить модуль %s: нет component: и нет legacy-маркера %s. Запись отменена.',
+    'Не удалось подтвердить модуль %s: нет component: и нет legacy-маркера %s, ' +
+    'но в файле есть чужой ver:. Запись отменена.',
     [ExpectedComponentId, StemList]
   );
 end;
@@ -163,7 +174,8 @@ end;
 function UpdateErtInstance(
   const ErtPath, InstanceLabel: string;
   const Comp: TComponentManifest;
-  const PreparedText: string
+  const PreparedText: string;
+  ForceDowngrade: Boolean
 ): TUpdateErtResult;
 var
   SoftText, SnapshotText: string;
@@ -225,16 +237,24 @@ begin
   SoftId := ExtractModuleIdentity(SoftText);
   if SoftId.HasVersion and (CompareVersionStrings(SoftId.VersionRaw, Comp.Version) > 0) then
   begin
-    Result.SkippedDowngrade := True;
-    Result.InstalledVersion := SoftId.VersionRaw;
-    Result.Message := Format(
-      'Локальная версия новее (%s > %s). Автоматический downgrade запрещён.',
-      [SoftId.VersionRaw, Comp.Version]
-    );
-    LogWarn(Result.Message);
-    Exit;
+    if not ForceDowngrade then
+    begin
+      Result.SkippedDowngrade := True;
+      Result.InstalledVersion := SoftId.VersionRaw;
+      Result.Message := Format(
+        'Локальная версия новее (%s > %s). Автоматический downgrade запрещён. ' +
+        'Для отката используйте кнопку принудительного downgrade.',
+        [SoftId.VersionRaw, Comp.Version]
+      );
+      LogWarn(Result.Message);
+      Exit;
+    end;
+    LogWarn(Format(
+      'Принудительный downgrade %s: %s → %s',
+      [InstanceLabel, SoftId.VersionRaw, Comp.Version]
+    ));
   end;
-  if SoftId.HasVersion and SameText(SoftId.VersionRaw, Comp.Version) then
+  if SoftId.HasVersion and SameText(SoftId.VersionRaw, Comp.Version) and (not ForceDowngrade) then
   begin
     Result.Ok := True;
     Result.InstalledVersion := SoftId.VersionRaw;
@@ -277,14 +297,22 @@ begin
 
   if SnapId.HasVersion and (CompareVersionStrings(SnapId.VersionRaw, Comp.Version) > 0) then
   begin
-    Result.SkippedDowngrade := True;
-    Result.InstalledVersion := SnapId.VersionRaw;
-    Result.Message := Format(
-      'Локальная версия новее (%s > %s). Автоматический downgrade запрещён.',
-      [SnapId.VersionRaw, Comp.Version]
-    );
-    LogWarn(Result.Message);
-    Exit;
+    if not ForceDowngrade then
+    begin
+      Result.SkippedDowngrade := True;
+      Result.InstalledVersion := SnapId.VersionRaw;
+      Result.Message := Format(
+        'Локальная версия новее (%s > %s). Автоматический downgrade запрещён. ' +
+        'Для отката используйте кнопку принудительного downgrade.',
+        [SnapId.VersionRaw, Comp.Version]
+      );
+      LogWarn(Result.Message);
+      Exit;
+    end;
+    LogWarn(Format(
+      'Принудительный downgrade (exclusive) %s: %s → %s',
+      [InstanceLabel, SnapId.VersionRaw, Comp.Version]
+    ));
   end;
 
   // --- backup именно этой версии файла (после подтверждения exclusive) ---

@@ -1,4 +1,4 @@
-unit VersionParse;
+﻿unit VersionParse;
 
 interface
 

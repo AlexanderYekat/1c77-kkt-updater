@@ -1,4 +1,4 @@
-unit Config;
+﻿unit Config;
 
 interface
 

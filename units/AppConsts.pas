@@ -1,4 +1,4 @@
-unit AppConsts;
+﻿unit AppConsts;
 
 interface
 

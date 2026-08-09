@@ -1,4 +1,4 @@
-unit HttpDownload;
+﻿unit HttpDownload;
 
 interface
 
@@ -23,6 +23,9 @@ begin
   Result.ResponseTimeout := 120000;
   Result.UserAgent := '1C77-KKT-Updater/1.0';
   Result.HandleRedirects := True;
+  // raw.githubusercontent.com иначе может долго отдавать старый stable.json
+  Result.CustomHeaders['Cache-Control'] := 'no-cache';
+  Result.CustomHeaders['Pragma'] := 'no-cache';
 end;
 
 function EnsureHttps(const Url: string; out ErrorMsg: string): Boolean;
@@ -30,6 +33,18 @@ begin
   Result := StartsText('https://', LowerCase(Url));
   if not Result then
     ErrorMsg := 'Разрешён только HTTPS: ' + Url;
+end;
+
+/// Обход CDN-кэша raw.githubusercontent.com (?t=timestamp)
+function WithCacheBuster(const Url: string): string;
+var
+  Sep: Char;
+begin
+  if Pos('?', Url) > 0 then
+    Sep := '&'
+  else
+    Sep := '?';
+  Result := Url + Sep + 't=' + FormatDateTime('yyyymmddhhnnsszzz', Now);
 end;
 
 function DownloadToFile(const Url, DestFile: string; out ErrorMsg: string): Boolean;
@@ -52,7 +67,7 @@ begin
   try
     try
       LogInfo('HTTP GET file: ' + Url);
-      Resp := Client.Get(Url);
+      Resp := Client.Get(WithCacheBuster(Url));
       if Resp.StatusCode <> 200 then
       begin
         ErrorMsg := Format('HTTP %d при загрузке %s', [Resp.StatusCode, Url]);
@@ -93,7 +108,7 @@ begin
   try
     try
       LogInfo('HTTP GET text: ' + Url);
-      Resp := Client.Get(Url);
+      Resp := Client.Get(WithCacheBuster(Url));
       if Resp.StatusCode <> 200 then
       begin
         ErrorMsg := Format('HTTP %d при загрузке %s', [Resp.StatusCode, Url]);

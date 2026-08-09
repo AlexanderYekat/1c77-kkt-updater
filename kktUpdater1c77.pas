@@ -35,8 +35,10 @@ type
     btnCheck: TButton;
     btnUpdateSelected: TButton;
     btnUpdateAll: TButton;
+    btnForceDowngrade: TButton;
     btnSnapshotWorking: TButton;
     btnRestoreWorking: TButton;
+    btnOpenSnapshots: TButton;
     lblSnapshotHint: TLabel;
     memLog: TMemo;
     dlgOpen: TOpenDialog;
@@ -50,8 +52,10 @@ type
     procedure btnCheckClick(Sender: TObject);
     procedure btnUpdateSelectedClick(Sender: TObject);
     procedure btnUpdateAllClick(Sender: TObject);
+    procedure btnForceDowngradeClick(Sender: TObject);
     procedure btnSnapshotWorkingClick(Sender: TObject);
     procedure btnRestoreWorkingClick(Sender: TObject);
+    procedure btnOpenSnapshotsClick(Sender: TObject);
   private
     FConfig: TAppConfig;
     FManifest: TStableManifest;
@@ -75,12 +79,13 @@ type
       out VerText: string; out ErrText: string): Boolean;
     function RowInChannel(const Row: TGridRowInfo; out Comp: TComponentManifest): Boolean;
     function UpdateOneRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
-      const PreparedText: string): TUpdateErtResult;
-    procedure RunUpdates(OnlySelected: Boolean);
+      const PreparedText: string; ForceDowngrade: Boolean = False): TUpdateErtResult;
+    procedure RunUpdates(OnlySelected: Boolean; ForceDowngrade: Boolean = False);
     function SelectedIbContext(out IbLabel, LineId, MainPath: string): Boolean;
     procedure ApplyPathPanelVisibility(const HasZlobin, HasStrelets, HasSurgut: Boolean);
     procedure DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
       FillPaths: Boolean);
+    procedure RefreshSnapshotStatusHint;
   public
   end;
 
@@ -94,6 +99,7 @@ implementation
 uses
   System.Generics.Collections,
   System.IOUtils,
+  Winapi.ShellAPI,
   AppConsts,
   AppPaths,
   AppLog,
@@ -171,6 +177,7 @@ begin
   DetectBasesInRegistry(HasZ, HasS, HasG, False);
   ApplyPathPanelVisibility(HasZ, HasS, HasG);
   RefreshGrid;
+  RefreshSnapshotStatusHint;
   LogInfo('Updater started');
 end;
 
@@ -188,6 +195,11 @@ begin
   btnCheck.Caption := 'Проверить обновления';
   btnUpdateSelected.Caption := 'Обновить выбранное';
   btnUpdateAll.Caption := 'Обновить всё';
+  btnForceDowngrade.Caption := 'Принуд. downgrade';
+  btnForceDowngrade.Hint :=
+    'Только для выделенной строки со статусом «локальная версия новее».'#13#10 +
+    'Запишет версию из канала, даже если она старше локальной (после подтверждения).';
+  btnForceDowngrade.ShowHint := True;
   btnSnapshotWorking.Caption := 'Снимок базы';
   btnSnapshotWorking.Hint :=
     'Строка в таблице выбирает только базу (Злобин/Стрелец/Сургут).'#13#10 +
@@ -197,9 +209,14 @@ begin
   btnRestoreWorking.Hint :=
     'Восстанавливает все ERT из снимка выбранной базы. 1Cv7.MD не восстанавливается.';
   btnRestoreWorking.ShowHint := True;
+  btnOpenSnapshots.Caption := 'Папка снимков';
+  btnOpenSnapshots.Hint :=
+    'Открыть каталог со снимками в Проводнике.'#13#10 +
+    'Если выделена строка базы и снимок есть — откроется папка этой базы.';
+  btnOpenSnapshots.ShowHint := True;
   if Assigned(lblSnapshotHint) then
     lblSnapshotHint.Caption :=
-      'Снимок/откат: выделите любую строку нужной базы — сохранится весь набор модулей, не только выделенный файл.';
+      'Снимок/откат: выделите любую строку нужной базы. Статус снимков — в строке ниже после обновления списка.';
   dlgOpen.Title := 'Выберите файл ERT';
   dlgOpen.Filter := 'ERT|*.ert|Все файлы|*.*';
 end;
@@ -456,12 +473,19 @@ begin
       State := 'файл не найден'
     else if SameText(Ver, 'ошибка чтения') then
       State := 'ошибка'
-    else if SameText(Ver, 'нет version') then
-      State := 'версия не задана'
     else if not FHasManifest then
       State := 'не проверен'
     else if not InChannel then
-      State := 'нет в канале'
+    begin
+      // В канале нет — даже если локально без version
+      if SameText(Ver, 'нет version') then
+        State := 'версия не задана'
+      else
+        State := 'нет в канале';
+    end
+    else if SameText(Ver, 'нет version') then
+      // В канале есть, локально version нет (старый ERT) — можно ставить
+      State := 'обновление'
     else
     begin
       InstalledClean := StringReplace(Ver, ' (legacy)', '', []);
@@ -496,6 +520,52 @@ procedure TfrmMain.btnBrowseSurgutClick(Sender: TObject);
 begin
   if BrowseErt(edtSurgut) then
     RefreshGrid;
+end;
+
+procedure TfrmMain.RefreshSnapshotStatusHint;
+var
+  Labels: TArray<string>;
+  Lbl, Part, Err, Line: string;
+  Info: TWorkingSnapshotInfo;
+  N: Integer;
+begin
+  if not Assigned(lblSnapshotHint) then
+    Exit;
+
+  SetLength(Labels, 0);
+  if FShowAtol then
+  begin
+    N := Length(Labels);
+    SetLength(Labels, N + 2);
+    Labels[N] := LabelZlobin;
+    Labels[N + 1] := LabelStrelets;
+  end;
+  if FShowSurgut then
+  begin
+    N := Length(Labels);
+    SetLength(Labels, N + 1);
+    Labels[N] := LabelSurgut;
+  end;
+
+  Line := '';
+  for Lbl in Labels do
+  begin
+    if WorkingSnapshotExists(Lbl) and LoadWorkingSnapshotManifest(Lbl, Info, Err) then
+      Part := Lbl + ': снимок ' + Info.CreatedAt
+    else if WorkingSnapshotExists(Lbl) then
+      Part := Lbl + ': снимок есть'
+    else
+      Part := Lbl + ': снимка нет';
+    if Line <> '' then
+      Line := Line + ' | ';
+    Line := Line + Part;
+  end;
+
+  if Line = '' then
+    lblSnapshotHint.Caption :=
+      'Снимок базы: выделите строку ИБ → «Снимок базы». Откат — «Откат снимка базы».'
+  else
+    lblSnapshotHint.Caption := 'Рабочий снимок (откат): ' + Line;
 end;
 
 procedure TfrmMain.ApplyPathPanelVisibility(const HasZlobin, HasStrelets, HasSurgut: Boolean);
@@ -549,6 +619,7 @@ begin
   grdUpdates.Top := pnlPaths.Top + pnlPaths.Height + 8;
   if grdUpdates.Top < 410 then
     grdUpdates.Height := 410 - grdUpdates.Top;
+  RefreshSnapshotStatusHint;
 end;
 
 procedure TfrmMain.DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
@@ -695,20 +766,24 @@ begin
 end;
 
 function TfrmMain.UpdateOneRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
-  const PreparedText: string): TUpdateErtResult;
+  const PreparedText: string; ForceDowngrade: Boolean): TUpdateErtResult;
 var
   InstanceLabel: string;
 begin
   InstanceLabel := Row.IbLabel + '/' + Row.ModuleStem;
-  LogInfo(Format('Update %s id=%s path=%s',
-    [InstanceLabel, Row.ComponentId, Row.ErtPath]));
-  Result := UpdateErtInstance(Row.ErtPath, InstanceLabel, Comp, PreparedText);
+  if ForceDowngrade then
+    LogInfo(Format('FORCE downgrade %s id=%s path=%s',
+      [InstanceLabel, Row.ComponentId, Row.ErtPath]))
+  else
+    LogInfo(Format('Update %s id=%s path=%s',
+      [InstanceLabel, Row.ComponentId, Row.ErtPath]));
+  Result := UpdateErtInstance(Row.ErtPath, InstanceLabel, Comp, PreparedText, ForceDowngrade);
   AppendStatus(InstanceLabel + ' [' + Row.ComponentId + ']: ' + Result.Message);
   if Result.Locked then
     MessageDlg(Result.Message, mtWarning, [mbOK], 0);
 end;
 
-procedure TfrmMain.RunUpdates(OnlySelected: Boolean);
+procedure TfrmMain.RunUpdates(OnlySelected: Boolean; ForceDowngrade: Boolean);
 var
   Err: string;
   Cached: string;
@@ -741,7 +816,17 @@ begin
       Exit;
     end;
     State := grdUpdates.Cells[COL_STATE, GridRow];
-    if SameText(State, 'нет в канале') then
+    if ForceDowngrade then
+    begin
+      if not SameText(State, 'локальная версия новее') then
+      begin
+        MessageDlg(
+          'Принудительный downgrade только для строки со статусом «локальная версия новее».',
+          mtInformation, [mbOK], 0);
+        Exit;
+      end;
+    end
+    else if SameText(State, 'нет в канале') then
     begin
       MessageDlg(
         '«' + FRows[RowIdx].ModuleStem + '» нет в канале (stable.json). Обновление недоступно.',
@@ -758,10 +843,34 @@ begin
       MessageDlg('Не задан путь к ERT.', mtWarning, [mbOK], 0);
       Exit;
     end;
+    if ForceDowngrade then
+    begin
+      if MessageDlg(
+        Format(
+          'Принудительный downgrade «%s / %s»?'#13#10#13#10 +
+          'Локально: %s'#13#10 +
+          'Канал:   %s'#13#10#13#10 +
+          'Локальная версия будет заменена более старой из канала.',
+          [
+            FRows[RowIdx].IbLabel,
+            FRows[RowIdx].ModuleStem,
+            grdUpdates.Cells[COL_INSTALLED, GridRow],
+            Comp.Version
+          ]
+        ),
+        mtWarning, [mbYes, mbNo], 0
+      ) <> mrYes then
+        Exit;
+    end;
     Indices := [RowIdx];
   end
   else
   begin
+    if ForceDowngrade then
+    begin
+      MessageDlg('Принудительный downgrade только для одной выбранной строки.', mtInformation, [mbOK], 0);
+      Exit;
+    end;
     for I := 0 to High(FRows) do
     begin
       State := grdUpdates.Cells[COL_STATE, I + 1];
@@ -795,13 +904,13 @@ begin
       Row := FRows[RowIdx];
       State := grdUpdates.Cells[COL_STATE, RowIdx + 1];
 
-      if SameText(State, 'локальная версия новее') then
+      if (not ForceDowngrade) and SameText(State, 'локальная версия новее') then
       begin
         AppendStatus(Row.IbLabel + '/' + Row.ModuleStem + ': downgrade запрещён — пропуск');
         Inc(SkipCount);
         Continue;
       end;
-      if SameText(State, 'актуально') then
+      if (not ForceDowngrade) and SameText(State, 'актуально') then
       begin
         AppendStatus(Row.IbLabel + '/' + Row.ModuleStem + ': уже актуально — пропуск');
         Inc(SkipCount);
@@ -832,7 +941,7 @@ begin
         PreparedById.Add(Row.ComponentId, PrepText);
       end;
 
-      Res := UpdateOneRow(Row, Comp, PrepText);
+      Res := UpdateOneRow(Row, Comp, PrepText, ForceDowngrade);
       if Res.Ok then
         Inc(OkCount)
       else if Res.SkippedDowngrade then
@@ -852,12 +961,17 @@ end;
 
 procedure TfrmMain.btnUpdateSelectedClick(Sender: TObject);
 begin
-  RunUpdates(True);
+  RunUpdates(True, False);
 end;
 
 procedure TfrmMain.btnUpdateAllClick(Sender: TObject);
 begin
-  RunUpdates(False);
+  RunUpdates(False, False);
+end;
+
+procedure TfrmMain.btnForceDowngradeClick(Sender: TObject);
+begin
+  RunUpdates(True, True);
 end;
 
 function TfrmMain.SelectedIbContext(out IbLabel, LineId, MainPath: string): Boolean;
@@ -952,6 +1066,7 @@ begin
   Msg := Msg + sLineBreak + Format('ERT: %d, 1Cv7.MD в архиве: %d.', [ErtCount, MdCount]);
 
   AppendStatus('Снимок рабочей OK: ' + IbLabel + ' -> ' + Info.SnapshotDir);
+  RefreshSnapshotStatusHint;
   MessageDlg(Msg, mtInformation, [mbOK], 0);
 end;
 
@@ -996,6 +1111,37 @@ begin
   MessageDlg(Format('Готово. Восстановлено файлов ERT: %d.'#13#10'1Cv7.MD не изменялся.', [N]),
     mtInformation, [mbOK], 0);
   RefreshGrid;
+  RefreshSnapshotStatusHint;
+end;
+
+procedure TfrmMain.btnOpenSnapshotsClick(Sender: TObject);
+var
+  Dir: string;
+  RowIdx: Integer;
+  IbLabel: string;
+begin
+  EnsureAppDirectories;
+  Dir := SnapshotsDir;
+
+  // Если выделена строка базы и снимок есть — открыть папку этой базы
+  RowIdx := grdUpdates.Row - 1;
+  if (RowIdx >= 0) and (RowIdx <= High(FRows)) then
+  begin
+    IbLabel := FRows[RowIdx].IbLabel;
+    if (IbLabel <> '') and WorkingSnapshotExists(IbLabel) then
+      Dir := WorkingSnapshotDir(IbLabel);
+  end;
+
+  if not TDirectory.Exists(Dir) then
+    ForceDirectories(Dir);
+
+  if ShellExecute(Handle, 'open', PChar(Dir), nil, nil, SW_SHOWNORMAL) <= 32 then
+  begin
+    AppendStatus('Не удалось открыть папку: ' + Dir);
+    MessageDlg('Не удалось открыть папку:'#13#10 + Dir, mtWarning, [mbOK], 0);
+  end
+  else
+    AppendStatus('Открыта папка снимков: ' + Dir);
 end;
 
 end.
