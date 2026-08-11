@@ -19,6 +19,10 @@ uses
   Winapi.TlHelp32,
   AppLog;
 
+const
+  // В части SDK/Delphi-юнитов константа отсутствует
+  PROCESS_QUERY_LIMITED_INFORMATION = $1000;
+
 function NormalizeExePath(const Path: string): string;
 begin
   Result := ExcludeTrailingPathDelimiter(ExpandFileName(Trim(Path)));
@@ -162,7 +166,6 @@ var
   I, N: Integer;
   Wait: DWORD;
 begin
-  Result := True;
   N := 0;
   SetLength(Handles, Length(Pids));
   for I := 0 to High(Pids) do

@@ -17,6 +17,7 @@ implementation
 
 uses
   System.SysUtils,
+  System.Classes,
   System.IOUtils,
   System.Zip,
   System.Masks,
@@ -65,6 +66,7 @@ var
   FoundExe: Boolean;
   List: TList<TZipEntryInfo>;
   Info: TZipEntryInfo;
+  Header: TZipHeader;
   Stream: TStream;
   FileStream: TFileStream;
 begin
@@ -133,7 +135,7 @@ begin
 
         LocalDir := ExtractFilePath(FullLocal);
         ForceDirectories(LocalDir);
-        Zip.Read(EntryName, Stream);
+        Zip.Read(EntryName, Stream, Header);
         try
           FileStream := TFileStream.Create(FullLocal, fmCreate);
           try

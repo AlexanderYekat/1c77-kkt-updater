@@ -35,6 +35,7 @@ implementation
 
 uses
   System.SysUtils,
+  System.Classes,
   System.IOUtils,
   System.JSON,
   System.Generics.Defaults,
