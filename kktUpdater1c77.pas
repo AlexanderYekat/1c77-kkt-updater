@@ -248,9 +248,9 @@ begin
   if Assigned(lblShtrihSvc) then
     lblShtrihSvc.Caption := LabelShtrihService;
   if Assigned(edtAtolBaseUrl) then
-    edtAtolBaseUrl.TextHint := 'http://127.0.0.1:2580';
+    edtAtolBaseUrl.TextHint := DefaultServiceBaseUrl;
   if Assigned(edtShtrihBaseUrl) then
-    edtShtrihBaseUrl.TextHint := 'http://127.0.0.1:2580';
+    edtShtrihBaseUrl.TextHint := DefaultServiceBaseUrl;
   if Assigned(edtAtolExe) then
     edtAtolExe.TextHint := HintServiceExeFileName;
   if Assigned(edtShtrihExe) then
@@ -298,11 +298,21 @@ begin
 
   Svc := FConfig.GetServiceConfig(ComponentAtolService);
   edtAtolExe.Text := Svc.Exe;
-  edtAtolBaseUrl.Text := Svc.BaseUrl;
+  if Trim(Svc.BaseUrl) <> '' then
+    edtAtolBaseUrl.Text := Svc.BaseUrl
+  else if Trim(Svc.Exe) <> '' then
+    edtAtolBaseUrl.Text := DefaultServiceBaseUrl
+  else
+    edtAtolBaseUrl.Text := '';
 
   Svc := FConfig.GetServiceConfig(ComponentShtrihService);
   edtShtrihExe.Text := Svc.Exe;
-  edtShtrihBaseUrl.Text := Svc.BaseUrl;
+  if Trim(Svc.BaseUrl) <> '' then
+    edtShtrihBaseUrl.Text := Svc.BaseUrl
+  else if Trim(Svc.Exe) <> '' then
+    edtShtrihBaseUrl.Text := DefaultServiceBaseUrl
+  else
+    edtShtrihBaseUrl.Text := '';
 end;
 
 procedure TfrmMain.DiscoverAndStoreLineModules(Line: TModuleLine;
@@ -330,14 +340,23 @@ begin
   end;
 end;
 
+function EffectiveServiceBaseUrl(const Exe, BaseUrl: string): string;
+begin
+  Result := Trim(BaseUrl);
+  if (Result = '') and (Trim(Exe) <> '') then
+    Result := DefaultServiceBaseUrl;
+end;
+
 procedure TfrmMain.ApplyPathsToConfig;
 begin
   FConfig.SetInstancePath(ComponentAtolModule, LabelZlobin, edtZlobin.Text);
   FConfig.SetInstancePath(ComponentAtolModule, LabelStrelets, edtStrelets.Text);
   FConfig.SetInstancePath(ComponentShtrihModule, LabelSurgut, edtSurgut.Text);
 
-  FConfig.SetServiceConfig(ComponentAtolService, edtAtolExe.Text, edtAtolBaseUrl.Text);
-  FConfig.SetServiceConfig(ComponentShtrihService, edtShtrihExe.Text, edtShtrihBaseUrl.Text);
+  FConfig.SetServiceConfig(ComponentAtolService, edtAtolExe.Text,
+    EffectiveServiceBaseUrl(edtAtolExe.Text, edtAtolBaseUrl.Text));
+  FConfig.SetServiceConfig(ComponentShtrihService, edtShtrihExe.Text,
+    EffectiveServiceBaseUrl(edtShtrihExe.Text, edtShtrihBaseUrl.Text));
 
   if FShowAtol then
   begin

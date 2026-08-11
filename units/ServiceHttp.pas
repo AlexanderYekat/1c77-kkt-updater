@@ -8,8 +8,10 @@ function ServiceHttpGet(const Url: string; out Content: string;
 function GetServiceVersion(const BaseUrl, ExpectedComponentId: string;
   out Version: string; out ErrorMsg: string): Boolean;
 function GetServiceHealthOk(const BaseUrl: string; out ErrorMsg: string): Boolean;
+/// После start: /version + /health. Если /version нет (старые сборки, HTTP 404) —
+/// fallback: VERSIONINFO exe + /health.
 function WaitServiceVersionAndHealth(const BaseUrl, ExpectedComponentId,
-  ExpectedVersion: string; IntervalMs, MaxMs: Integer;
+  ExpectedVersion, ExePath: string; IntervalMs, MaxMs: Integer;
   out ErrorMsg: string): Boolean;
 function JoinBaseUrl(const BaseUrl, Endpoint: string): string;
 
@@ -23,7 +25,8 @@ uses
   System.Net.URLClient,
   AppConsts,
   AppLog,
-  VersionParse;
+  VersionParse,
+  ExeVersion;
 
 function JoinBaseUrl(const BaseUrl, Endpoint: string): string;
 var
@@ -164,12 +167,19 @@ begin
   end;
 end;
 
+function IsHttp404(const ErrorMsg: string): Boolean;
+begin
+  // ServiceHttpGet: 'HTTP 404: url'
+  Result := StartsText('HTTP 404:', Trim(ErrorMsg));
+end;
+
 function WaitServiceVersionAndHealth(const BaseUrl, ExpectedComponentId,
-  ExpectedVersion: string; IntervalMs, MaxMs: Integer;
+  ExpectedVersion, ExePath: string; IntervalMs, MaxMs: Integer;
   out ErrorMsg: string): Boolean;
 var
   Elapsed: Integer;
-  Ver, LastErr: string;
+  Ver, LastErr, ExeErr: string;
+  VersionOk, UsedExeFallback: Boolean;
 begin
   Result := False;
   ErrorMsg := '';
@@ -182,19 +192,51 @@ begin
 
   while Elapsed <= MaxMs do
   begin
+    VersionOk := False;
+    UsedExeFallback := False;
+    Ver := '';
+
     if GetServiceVersion(BaseUrl, ExpectedComponentId, Ver, LastErr) then
     begin
       if SameText(Ver, ExpectedVersion) then
-      begin
-        if GetServiceHealthOk(BaseUrl, LastErr) then
-        begin
-          LogInfo(Format('Verify OK /version=%s /health', [Ver]));
-          Exit(True);
-        end;
-      end
+        VersionOk := True
       else
         LastErr := Format('/version=%s, ожидается %s', [Ver, ExpectedVersion]);
+    end
+    else if IsHttp404(LastErr) then
+    begin
+      // Старые сборки без GET /version: канон из VERSIONINFO exe
+      ExeErr := '';
+      if Trim(ExePath) = '' then
+        LastErr := 'GET /version=404 и exe не задан для fallback'
+      else if not ReadExeCanonVersion(ExePath, Ver, ExeErr) then
+        LastErr := 'GET /version=404; fallback FileVersion: ' + ExeErr
+      else if not SameText(Ver, ExpectedVersion) then
+        LastErr := Format(
+          'GET /version=404; exe version=%s, ожидается %s',
+          [Ver, ExpectedVersion])
+      else
+      begin
+        VersionOk := True;
+        UsedExeFallback := True;
+      end;
     end;
+    // иначе: соединение ещё не поднялось / 5xx — ждём дальше
+
+    if VersionOk then
+    begin
+      if GetServiceHealthOk(BaseUrl, LastErr) then
+      begin
+        if UsedExeFallback then
+          LogInfo(Format(
+            'Verify OK (legacy: /version отсутствует, FileVersion=%s) /health',
+            [Ver]))
+        else
+          LogInfo(Format('Verify OK /version=%s /health', [Ver]));
+        Exit(True);
+      end;
+    end;
+
     Sleep(IntervalMs);
     Inc(Elapsed, IntervalMs);
   end;

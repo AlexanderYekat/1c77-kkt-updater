@@ -33,6 +33,8 @@ const
 
   { Типичное имя exe службы (подсказка UI; путь — только из config) }
   HintServiceExeFileName = 'kktserverindyProject.exe';
+  { Дефолт base_url, если в UI/config пусто, но exe задан }
+  DefaultServiceBaseUrl = 'http://127.0.0.1:2580';
 
   DefaultManifestUrl =
     'https://raw.githubusercontent.com/AlexanderYekat/1c77-kkt-updater/main/channels/stable.json';
@@ -47,6 +49,7 @@ const
   { Post-update HTTP verify }
   ServiceHealthRetryIntervalMs = 1000;
   ServiceHealthRetryMaxMs = 30000;
+  { Старые Delphi-сборки без GET /version: verify = FileVersion exe + /health }
 
   { Остановка/ожидание процесса приложения }
   ServiceProcessWaitTimeoutMs = 60000;

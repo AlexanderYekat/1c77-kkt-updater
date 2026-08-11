@@ -127,7 +127,10 @@ begin
   end;
   if Trim(Svc.BaseUrl) = '' then
   begin
-    Result.Message := 'config.base_url не задан для ' + Comp.Id;
+    Result.Message :=
+      'config.base_url не задан для ' + Comp.Id +
+      '. Укажите URL в поле base_url (например ' + DefaultServiceBaseUrl +
+      ') и нажмите «Сохранить пути». Серый текст в поле — только подсказка, не значение.';
     Exit;
   end;
   if not TFile.Exists(Svc.Exe) then
@@ -280,7 +283,8 @@ begin
   end;
 
   // --- verify ---
-  if not WaitServiceVersionAndHealth(Svc.BaseUrl, Comp.Id, Comp.Version,
+  // /version предпочтителен; при 404 (старые сборки) — FileVersion exe + /health
+  if not WaitServiceVersionAndHealth(Svc.BaseUrl, Comp.Id, Comp.Version, Svc.Exe,
     ServiceHealthRetryIntervalMs, ServiceHealthRetryMaxMs, Err) then
   begin
     if not StopProcessForExe(Svc.Exe, ServiceProcessWaitTimeoutMs, Err) then
