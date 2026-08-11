@@ -1,4 +1,4 @@
-﻿unit kktUpdater1c77;
+unit kktUpdater1c77;
 
 interface
 
@@ -453,8 +453,15 @@ var
   Rows: TArray<TGridRowInfo>;
   N: Integer;
 begin
+  // Сначала из UI в FConfig — иначе свежие exe/base_url не попадут в грид
+  ApplyPathsToConfig;
+
   SetLength(Rows, 0);
   N := 0;
+
+  // Приложения ККТ сверху — иначе их не видно за списком ERT
+  AddServiceRowIfConfigured(ComponentAtolService, LabelAtolService, Rows, N);
+  AddServiceRowIfConfigured(ComponentShtrihService, LabelShtrihService, Rows, N);
 
   if FShowAtol then
   begin
@@ -463,9 +470,6 @@ begin
   end;
   if FShowSurgut then
     AddIbModulesFromCatalog(LabelSurgut, mlShtrih, Trim(edtSurgut.Text), Rows, N);
-
-  AddServiceRowIfConfigured(ComponentAtolService, LabelAtolService, Rows, N);
-  AddServiceRowIfConfigured(ComponentShtrihService, LabelShtrihService, Rows, N);
 
   FRows := Rows;
 end;
@@ -507,9 +511,9 @@ begin
     end;
 
     if Id.HasVersion then
-      VerText := 'нет version'
+      VerText := Id.VersionRaw
     else
-      VerText := 'нет version';
+      VerText := 'в ERT нет version';
     Result := True;
   except
     on E: Exception do
@@ -562,6 +566,8 @@ begin
         Ver := '—'
       else if not TFile.Exists(Svc.Exe) then
         Ver := 'файл не найден'
+      else if Err <> '' then
+        Ver := 'нет version'
       else
         Ver := 'нет version';
     end
@@ -614,12 +620,12 @@ begin
     else if not InChannel then
     begin
       // В канале нет — даже если локально без version
-      if SameText(Ver, 'нет version') then
+      if SameText(Ver, 'нет version') or SameText(Ver, 'в ERT нет version') then
         State := 'версия не задана'
       else
         State := 'нет в канале';
     end
-    else if SameText(Ver, 'нет version') then
+    else if SameText(Ver, 'в ERT нет version') or SameText(Ver, 'нет version') then
       // В канале есть, локально version нет (старый ERT) — можно ставить
       State := 'обновление'
     else
@@ -770,7 +776,7 @@ end;
 
 procedure TfrmMain.LayoutPanels;
 var
-  Y: Integer;
+  Y, BottomOfButtons: Integer;
 begin
   if not Assigned(pnlServices) then
   begin
@@ -782,8 +788,9 @@ begin
   pnlServices.Width := pnlPaths.Width;
   Y := pnlServices.Top + pnlServices.Height + 8;
   grdUpdates.Top := Y;
-  if grdUpdates.Top < 410 then
-    grdUpdates.Height := Max(120, 410 - grdUpdates.Top);
+  BottomOfButtons := btnCheck.Top - 8;
+  if BottomOfButtons > Y + 80 then
+    grdUpdates.Height := BottomOfButtons - Y;
 end;
 
 procedure TfrmMain.DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
