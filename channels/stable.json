@@ -4,12 +4,12 @@
     "1c77-atol-module": {
       "id": "1c77-atol-module",
       "type": "ert-module",
-      "version": "2026.08.06-03",
+      "version": "2026.08.11-01",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "1c77-atol-module-2026.08.06-03",
-      "asset": "1c77-atol-module-2026.08.06-03.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-module-2026.08.06-03/1c77-atol-module-2026.08.06-03.txt",
-      "sha256": "3f3a5ff2412dea5cecc0812b10c1a00bb53075e4f0c4d5dd1ea6476b5be68750"
+      "tag": "1c77-atol-module-2026.08.11-01",
+      "asset": "1c77-atol-module-2026.08.11-01.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-module-2026.08.11-01/1c77-atol-module-2026.08.11-01.txt",
+      "sha256": "9d9c33d079f5ffda97ad5444dd4ce9a2296bdce59369c33a2f00e5ee516f6374"
     },
     "1c77-atol-permissive_regime_2024": {
       "id": "1c77-atol-permissive_regime_2024",
@@ -19,7 +19,7 @@
       "tag": "1c77-atol-permissive_regime_2024-2026.08.11-01",
       "asset": "1c77-atol-permissive_regime_2024-2026.08.11-01.txt",
       "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-permissive_regime_2024-2026.08.11-01/1c77-atol-permissive_regime_2024-2026.08.11-01.txt",
-      "sha256": "4b3ba445f777485e27181d8433e7ddff8af85ce8b3c28becec1027829cbac413"
+      "sha256": "fb152209ed5d8cde342f2a3d9bf63899896838cd0343ded5de5667f6dc1af8cc"
     },
     "1c77-atol-razresh_regim_check": {
       "id": "1c77-atol-razresh_regim_check",
