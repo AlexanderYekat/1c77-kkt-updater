@@ -6,15 +6,18 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
   Vcl.Grids,
-  Config, Manifest, ModuleCatalog, UpdateErt;
+  Config, Manifest, ModuleCatalog, UpdateErt, UpdateService;
 
 type
+  TGridRowKind = (gkErt, gkService);
+
   TGridRowInfo = record
+    Kind: TGridRowKind;
     IbLabel: string;
     ComponentId: string;
     ModuleStem: string;
     ErtPath: string;
-    LineId: string; // LineIdAtol / LineIdShtrih
+    LineId: string; // LineIdAtol / LineIdShtrih; для службы — пусто
   end;
 
   TfrmMain = class(TForm)
@@ -31,6 +34,16 @@ type
     btnBrowseSurgut: TButton;
     btnDetectRegistry: TButton;
     btnSavePaths: TButton;
+    pnlServices: TPanel;
+    lblServices: TLabel;
+    lblAtolSvc: TLabel;
+    edtAtolExe: TEdit;
+    btnBrowseAtolExe: TButton;
+    edtAtolBaseUrl: TEdit;
+    lblShtrihSvc: TLabel;
+    edtShtrihExe: TEdit;
+    btnBrowseShtrihExe: TButton;
+    edtShtrihBaseUrl: TEdit;
     grdUpdates: TStringGrid;
     btnCheck: TButton;
     btnUpdateSelected: TButton;
@@ -47,6 +60,8 @@ type
     procedure btnBrowseZlobinClick(Sender: TObject);
     procedure btnBrowseStreletsClick(Sender: TObject);
     procedure btnBrowseSurgutClick(Sender: TObject);
+    procedure btnBrowseAtolExeClick(Sender: TObject);
+    procedure btnBrowseShtrihExeClick(Sender: TObject);
     procedure btnDetectRegistryClick(Sender: TObject);
     procedure btnSavePathsClick(Sender: TObject);
     procedure btnCheckClick(Sender: TObject);
@@ -70,9 +85,12 @@ type
     procedure ApplyPathsToConfig;
     procedure DiscoverAndStoreLineModules(Line: TModuleLine; const IbLabel, AnchorPath: string);
     function BrowseErt(var Edit: TEdit): Boolean;
+    function BrowseExe(var Edit: TEdit): Boolean;
     function ExtFormsRootFromErtOrEmpty(const ErtPath: string): string;
     procedure AddIbModulesFromCatalog(const IbLabel: string; Line: TModuleLine;
       const AnchorPath: string; var Rows: TArray<TGridRowInfo>; var N: Integer);
+    procedure AddServiceRowIfConfigured(const ComponentId, DisplayName: string;
+      var Rows: TArray<TGridRowInfo>; var N: Integer);
     procedure RebuildRows;
     procedure RefreshGrid;
     function ReadInstalledVersion(const ErtPath, ComponentId: string;
@@ -80,9 +98,12 @@ type
     function RowInChannel(const Row: TGridRowInfo; out Comp: TComponentManifest): Boolean;
     function UpdateOneRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
       const PreparedText: string; ForceDowngrade: Boolean = False): TUpdateErtResult;
+    function UpdateOneServiceRow(const Row: TGridRowInfo; const Comp: TComponentManifest;
+      ForceDowngrade: Boolean = False): TUpdateServiceResult;
     procedure RunUpdates(OnlySelected: Boolean; ForceDowngrade: Boolean = False);
     function SelectedIbContext(out IbLabel, LineId, MainPath: string): Boolean;
     procedure ApplyPathPanelVisibility(const HasZlobin, HasStrelets, HasSurgut: Boolean);
+    procedure LayoutPanels;
     procedure DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
       FillPaths: Boolean);
     procedure RefreshSnapshotStatusHint;
@@ -99,6 +120,8 @@ implementation
 uses
   System.Generics.Collections,
   System.IOUtils,
+  System.Math,
+  System.StrUtils,
   Winapi.ShellAPI,
   AppConsts,
   AppPaths,
@@ -176,6 +199,7 @@ begin
   LoadPathsFromConfig;
   DetectBasesInRegistry(HasZ, HasS, HasG, False);
   ApplyPathPanelVisibility(HasZ, HasS, HasG);
+  LayoutPanels;
   RefreshGrid;
   RefreshSnapshotStatusHint;
   LogInfo('Updater started');
@@ -217,6 +241,20 @@ begin
   if Assigned(lblSnapshotHint) then
     lblSnapshotHint.Caption :=
       'Снимок/откат: выделите любую строку нужной базы. Статус снимков — в строке ниже после обновления списка.';
+  if Assigned(lblServices) then
+    lblServices.Caption := 'Приложения ККТ (exe / base_url)';
+  if Assigned(lblAtolSvc) then
+    lblAtolSvc.Caption := LabelAtolService;
+  if Assigned(lblShtrihSvc) then
+    lblShtrihSvc.Caption := LabelShtrihService;
+  if Assigned(edtAtolBaseUrl) then
+    edtAtolBaseUrl.TextHint := 'http://127.0.0.1:2580';
+  if Assigned(edtShtrihBaseUrl) then
+    edtShtrihBaseUrl.TextHint := 'http://127.0.0.1:2580';
+  if Assigned(edtAtolExe) then
+    edtAtolExe.TextHint := HintServiceExeFileName;
+  if Assigned(edtShtrihExe) then
+    edtShtrihExe.TextHint := HintServiceExeFileName;
   dlgOpen.Title := 'Выберите файл ERT';
   dlgOpen.Filter := 'ERT|*.ert|Все файлы|*.*';
 end;
@@ -251,10 +289,20 @@ begin
 end;
 
 procedure TfrmMain.LoadPathsFromConfig;
+var
+  Svc: TComponentConfig;
 begin
   edtZlobin.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelZlobin);
   edtStrelets.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelStrelets);
   edtSurgut.Text := FConfig.GetInstancePath(ComponentShtrihModule, LabelSurgut);
+
+  Svc := FConfig.GetServiceConfig(ComponentAtolService);
+  edtAtolExe.Text := Svc.Exe;
+  edtAtolBaseUrl.Text := Svc.BaseUrl;
+
+  Svc := FConfig.GetServiceConfig(ComponentShtrihService);
+  edtShtrihExe.Text := Svc.Exe;
+  edtShtrihBaseUrl.Text := Svc.BaseUrl;
 end;
 
 procedure TfrmMain.DiscoverAndStoreLineModules(Line: TModuleLine;
@@ -288,6 +336,9 @@ begin
   FConfig.SetInstancePath(ComponentAtolModule, LabelStrelets, edtStrelets.Text);
   FConfig.SetInstancePath(ComponentShtrihModule, LabelSurgut, edtSurgut.Text);
 
+  FConfig.SetServiceConfig(ComponentAtolService, edtAtolExe.Text, edtAtolBaseUrl.Text);
+  FConfig.SetServiceConfig(ComponentShtrihService, edtShtrihExe.Text, edtShtrihBaseUrl.Text);
+
   if FShowAtol then
   begin
     DiscoverAndStoreLineModules(mlAtol, LabelZlobin, Trim(edtZlobin.Text));
@@ -300,6 +351,21 @@ end;
 function TfrmMain.BrowseErt(var Edit: TEdit): Boolean;
 begin
   Result := False;
+  dlgOpen.Title := 'Выберите файл ERT';
+  dlgOpen.Filter := 'ERT|*.ert|Все файлы|*.*';
+  dlgOpen.FileName := Edit.Text;
+  if dlgOpen.Execute then
+  begin
+    Edit.Text := dlgOpen.FileName;
+    Result := True;
+  end;
+end;
+
+function TfrmMain.BrowseExe(var Edit: TEdit): Boolean;
+begin
+  Result := False;
+  dlgOpen.Title := 'Выберите EXE службы';
+  dlgOpen.Filter := 'EXE|*.exe|Все файлы|*.*';
   dlgOpen.FileName := Edit.Text;
   if dlgOpen.Execute then
   begin
@@ -350,6 +416,7 @@ begin
     if (Trim(AnchorPath) = '') and (Trim(Path) = '') then
       Continue;
 
+    Row.Kind := gkErt;
     Row.IbLabel := IbLabel;
     Row.ComponentId := Entry.ComponentId;
     Row.ModuleStem := Entry.FileStem;
@@ -359,6 +426,26 @@ begin
     Rows[N] := Row;
     Inc(N);
   end;
+end;
+
+procedure TfrmMain.AddServiceRowIfConfigured(const ComponentId, DisplayName: string;
+  var Rows: TArray<TGridRowInfo>; var N: Integer);
+var
+  Svc: TComponentConfig;
+  Row: TGridRowInfo;
+begin
+  Svc := FConfig.GetServiceConfig(ComponentId);
+  if not Svc.HasServiceConfig then
+    Exit;
+  Row.Kind := gkService;
+  Row.IbLabel := DisplayName;
+  Row.ComponentId := ComponentId;
+  Row.ModuleStem := DisplayName;
+  Row.ErtPath := Svc.Exe;
+  Row.LineId := '';
+  SetLength(Rows, N + 1);
+  Rows[N] := Row;
+  Inc(N);
 end;
 
 procedure TfrmMain.RebuildRows;
@@ -376,6 +463,9 @@ begin
   end;
   if FShowSurgut then
     AddIbModulesFromCatalog(LabelSurgut, mlShtrih, Trim(edtSurgut.Text), Rows, N);
+
+  AddServiceRowIfConfigured(ComponentAtolService, LabelAtolService, Rows, N);
+  AddServiceRowIfConfigured(ComponentShtrihService, LabelShtrihService, Rows, N);
 
   FRows := Rows;
 end;
@@ -444,6 +534,7 @@ var
   Comp: TComponentManifest;
   InChannel: Boolean;
   Cmp: Integer;
+  Svc: TComponentConfig;
 begin
   RebuildRows;
   if Length(FRows) = 0 then
@@ -454,10 +545,29 @@ begin
   for R := 0 to High(FRows) do
   begin
     GridRow := R + 1;
-    grdUpdates.Cells[COL_INSTANCE, GridRow] :=
-      FRows[R].IbLabel + ' / ' + FRows[R].ModuleStem;
+    Ver := '—';
+    Err := '';
+    if FRows[R].Kind = gkService then
+      grdUpdates.Cells[COL_INSTANCE, GridRow] := FRows[R].IbLabel
+    else
+      grdUpdates.Cells[COL_INSTANCE, GridRow] :=
+        FRows[R].IbLabel + ' / ' + FRows[R].ModuleStem;
 
-    ReadInstalledVersion(FRows[R].ErtPath, FRows[R].ComponentId, Ver, Err);
+    if FRows[R].Kind = gkService then
+    begin
+      Svc := FConfig.GetServiceConfig(FRows[R].ComponentId);
+      if ReadInstalledServiceVersion(Svc, FRows[R].ComponentId, Ver, Err, True) then
+        { ok }
+      else if Trim(Svc.Exe) = '' then
+        Ver := '—'
+      else if not TFile.Exists(Svc.Exe) then
+        Ver := 'файл не найден'
+      else
+        Ver := 'нет version';
+    end
+    else
+      ReadInstalledVersion(FRows[R].ErtPath, FRows[R].ComponentId, Ver, Err);
+
     grdUpdates.Cells[COL_INSTALLED, GridRow] := Ver;
 
     InChannel := RowInChannel(FRows[R], Comp);
@@ -467,7 +577,33 @@ begin
       Available := '—';
     grdUpdates.Cells[COL_AVAILABLE, GridRow] := Available;
 
-    if Trim(FRows[R].ErtPath) = '' then
+    if FRows[R].Kind = gkService then
+    begin
+      Svc := FConfig.GetServiceConfig(FRows[R].ComponentId);
+      if Trim(Svc.Exe) = '' then
+        State := 'нет пути'
+      else if SameText(Ver, 'файл не найден') then
+        State := 'файл не найден'
+      else if (Err <> '') and SameText(Ver, 'нет version') then
+        State := 'ошибка'
+      else if not FHasManifest then
+        State := 'не проверен'
+      else if not InChannel then
+        State := 'нет в канале'
+      else if SameText(Ver, 'нет version') or (Ver = '—') then
+        State := 'обновление'
+      else
+      begin
+        Cmp := CompareVersionStrings(Available, Ver);
+        if Cmp > 0 then
+          State := 'обновление'
+        else if Cmp = 0 then
+          State := 'актуально'
+        else
+          State := 'локальная версия новее';
+      end;
+    end
+    else if Trim(FRows[R].ErtPath) = '' then
       State := 'нет пути'
     else if SameText(Ver, 'файл не найден') then
       State := 'файл не найден'
@@ -519,6 +655,18 @@ end;
 procedure TfrmMain.btnBrowseSurgutClick(Sender: TObject);
 begin
   if BrowseErt(edtSurgut) then
+    RefreshGrid;
+end;
+
+procedure TfrmMain.btnBrowseAtolExeClick(Sender: TObject);
+begin
+  if BrowseExe(edtAtolExe) then
+    RefreshGrid;
+end;
+
+procedure TfrmMain.btnBrowseShtrihExeClick(Sender: TObject);
+begin
+  if BrowseExe(edtShtrihExe) then
     RefreshGrid;
 end;
 
@@ -616,10 +764,26 @@ begin
   btnDetectRegistry.Top := RowTop + 4;
   btnSavePaths.Top := RowTop + 4;
   pnlPaths.Height := RowTop + 34;
-  grdUpdates.Top := pnlPaths.Top + pnlPaths.Height + 8;
-  if grdUpdates.Top < 410 then
-    grdUpdates.Height := 410 - grdUpdates.Top;
+  LayoutPanels;
   RefreshSnapshotStatusHint;
+end;
+
+procedure TfrmMain.LayoutPanels;
+var
+  Y: Integer;
+begin
+  if not Assigned(pnlServices) then
+  begin
+    grdUpdates.Top := pnlPaths.Top + pnlPaths.Height + 8;
+    Exit;
+  end;
+  pnlServices.Top := pnlPaths.Top + pnlPaths.Height + 4;
+  pnlServices.Left := pnlPaths.Left;
+  pnlServices.Width := pnlPaths.Width;
+  Y := pnlServices.Top + pnlServices.Height + 8;
+  grdUpdates.Top := Y;
+  if grdUpdates.Top < 410 then
+    grdUpdates.Height := Max(120, 410 - grdUpdates.Top);
 end;
 
 procedure TfrmMain.DetectBasesInRegistry(out HasZlobin, HasStrelets, HasSurgut: Boolean;
@@ -783,6 +947,24 @@ begin
     MessageDlg(Result.Message, mtWarning, [mbOK], 0);
 end;
 
+function TfrmMain.UpdateOneServiceRow(const Row: TGridRowInfo;
+  const Comp: TComponentManifest; ForceDowngrade: Boolean): TUpdateServiceResult;
+var
+  Svc: TComponentConfig;
+begin
+  Svc := FConfig.GetServiceConfig(Row.ComponentId);
+  if ForceDowngrade then
+    LogInfo(Format('FORCE downgrade app id=%s exe=%s',
+      [Row.ComponentId, Svc.Exe]))
+  else
+    LogInfo(Format('Update app id=%s exe=%s',
+      [Row.ComponentId, Svc.Exe]));
+  Result := UpdateWindowsService(Comp, Svc, ForceDowngrade);
+  AppendStatus(Row.IbLabel + ' [' + Row.ComponentId + ']: ' + Result.Message);
+  if Result.CriticalRollbackFailed then
+    MessageDlg(Result.Message, mtError, [mbOK], 0);
+end;
+
 procedure TfrmMain.RunUpdates(OnlySelected: Boolean; ForceDowngrade: Boolean);
 var
   Err: string;
@@ -797,6 +979,7 @@ var
   Row: TGridRowInfo;
   PrepText: string;
   Res: TUpdateErtResult;
+  SvcRes: TUpdateServiceResult;
 begin
   ApplyPathsToConfig;
   if not FHasManifest then
@@ -812,7 +995,7 @@ begin
     RowIdx := GridRow - 1;
     if (RowIdx < 0) or (RowIdx > High(FRows)) then
     begin
-      MessageDlg('Выберите строку модуля.', mtInformation, [mbOK], 0);
+      MessageDlg('Выберите строку модуля или службы.', mtInformation, [mbOK], 0);
       Exit;
     end;
     State := grdUpdates.Cells[COL_STATE, GridRow];
@@ -838,22 +1021,33 @@ begin
       MessageDlg('Компонент отсутствует в manifest.', mtInformation, [mbOK], 0);
       Exit;
     end;
-    if Trim(FRows[RowIdx].ErtPath) = '' then
+    if FRows[RowIdx].Kind = gkErt then
     begin
-      MessageDlg('Не задан путь к ERT.', mtWarning, [mbOK], 0);
-      Exit;
+      if Trim(FRows[RowIdx].ErtPath) = '' then
+      begin
+        MessageDlg('Не задан путь к ERT.', mtWarning, [mbOK], 0);
+        Exit;
+      end;
+    end
+    else
+    begin
+      if Trim(FConfig.GetServiceConfig(FRows[RowIdx].ComponentId).Exe) = '' then
+      begin
+        MessageDlg('Не задан путь к EXE службы.', mtWarning, [mbOK], 0);
+        Exit;
+      end;
     end;
     if ForceDowngrade then
     begin
       if MessageDlg(
         Format(
-          'Принудительный downgrade «%s / %s»?'#13#10#13#10 +
+          'Принудительный downgrade «%s»?'#13#10#13#10 +
           'Локально: %s'#13#10 +
           'Канал:   %s'#13#10#13#10 +
           'Локальная версия будет заменена более старой из канала.',
           [
-            FRows[RowIdx].IbLabel,
-            FRows[RowIdx].ModuleStem,
+            FRows[RowIdx].IbLabel +
+              IfThen(FRows[RowIdx].Kind = gkErt, ' / ' + FRows[RowIdx].ModuleStem, ''),
             grdUpdates.Cells[COL_INSTALLED, GridRow],
             Comp.Version
           ]
@@ -922,6 +1116,19 @@ begin
         Inc(SkipCount);
         Continue;
       end;
+
+      if Row.Kind = gkService then
+      begin
+        SvcRes := UpdateOneServiceRow(Row, Comp, ForceDowngrade);
+        if SvcRes.Ok then
+          Inc(OkCount)
+        else if SvcRes.SkippedDowngrade then
+          Inc(SkipCount)
+        else
+          Inc(FailCount);
+        Continue;
+      end;
+
       if FailedPrepare.IndexOf(Row.ComponentId) >= 0 then
       begin
         Inc(FailCount);
@@ -985,6 +1192,14 @@ begin
   RowIdx := grdUpdates.Row - 1;
   if (RowIdx >= 0) and (RowIdx <= High(FRows)) then
   begin
+    if FRows[RowIdx].Kind = gkService then
+    begin
+      MessageDlg(
+        'Снимок базы — только для строк ERT (Злобин / Стрелец / Сургут).'#13#10 +
+        'Выберите строку модуля, не службы.',
+        mtInformation, [mbOK], 0);
+      Exit;
+    end;
     IbLabel := FRows[RowIdx].IbLabel;
     LineId := FRows[RowIdx].LineId;
   end

@@ -20,6 +20,9 @@ type
   end;
 
 function ParseVersionKey(const Raw: string; out Key: TVersionKey): Boolean;
+/// FileVersion Windows `YYYY.M.D.N` (напр. 2026.8.9.1) → канон `YYYY.MM.DD-NN`
+function NormalizeFileVersionToCanon(const FileVersion: string;
+  out Canon: string): Boolean;
 function ExtractModuleIdentity(const Text: string): TModuleIdentity;
 /// Legacy: //<stem> или //<stem>.ert … ver: YYYY.MM.DD-NN
 function HasLegacyStemVerMarker(const Text, Stem: string;
@@ -79,6 +82,26 @@ begin
   Key.D := StrToInt(M.Groups[3].Value);
   Key.N := StrToInt(M.Groups[4].Value);
   Result := Key.IsValid;
+end;
+
+function NormalizeFileVersionToCanon(const FileVersion: string;
+  out Canon: string): Boolean;
+var
+  M: TMatch;
+  Key: TVersionKey;
+begin
+  Canon := '';
+  Key := TVersionKey.Empty;
+  M := TRegEx.Match(Trim(FileVersion), '^(\d{1,4})\.(\d{1,2})\.(\d{1,2})\.(\d{1,4})$');
+  if not M.Success then
+    Exit(False);
+  Key.Y := StrToInt(M.Groups[1].Value);
+  Key.M := StrToInt(M.Groups[2].Value);
+  Key.D := StrToInt(M.Groups[3].Value);
+  Key.N := StrToInt(M.Groups[4].Value);
+  Result := Key.IsValid;
+  if Result then
+    Canon := Key.AsString;
 end;
 
 function ExtractHeaderValue(const Text, FieldName: string): string;

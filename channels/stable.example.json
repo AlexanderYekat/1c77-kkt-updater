@@ -60,6 +60,26 @@
       "asset": "1c77-shtrih-fr_elves_test-2026.07.20-01.txt",
       "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/1c77-shtrih-fr_elves_test-2026.07.20-01/1c77-shtrih-fr_elves_test-2026.07.20-01.txt",
       "sha256": "REPLACE_WITH_REAL_SHA256_OF_PUBLISHED_ASSET"
+    },
+    "atol-service": {
+      "id": "atol-service",
+      "type": "windows-service",
+      "version": "2026.08.09-01",
+      "repository": "AlexanderYekat/1c77-tspiot-atol",
+      "tag": "service-2026.08.09-01",
+      "asset": "atol-service-2026.08.09-01.zip",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/service-2026.08.09-01/atol-service-2026.08.09-01.zip",
+      "sha256": "REPLACE_SHA"
+    },
+    "shtrih-service": {
+      "id": "shtrih-service",
+      "type": "windows-service",
+      "version": "2026.08.09-01",
+      "repository": "AlexanderYekat/1c77-tspiot-shtrih",
+      "tag": "service-2026.08.09-01",
+      "asset": "shtrih-service-2026.08.09-01.zip",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/service-2026.08.09-01/shtrih-service-2026.08.09-01.zip",
+      "sha256": "REPLACE_SHA"
     }
   }
 }

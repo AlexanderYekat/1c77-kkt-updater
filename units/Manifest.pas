@@ -17,6 +17,8 @@ type
     DownloadUrl: string;
     Sha256: string;
     function IsValidErtModule: Boolean;
+    function IsValidWindowsService: Boolean;
+    function IsValidKnownType: Boolean;
   end;
 
   TStableManifest = record
@@ -53,6 +55,24 @@ begin
     (Asset <> '') and
     (DownloadUrl <> '') and
     (Sha256 <> '');
+end;
+
+function TComponentManifest.IsValidWindowsService: Boolean;
+begin
+  Result :=
+    (Id <> '') and
+    SameText(Typ, ComponentTypeWindowsService) and
+    (Version <> '') and
+    (Repository <> '') and
+    (Tag <> '') and
+    (Asset <> '') and
+    (DownloadUrl <> '') and
+    (Sha256 <> '');
+end;
+
+function TComponentManifest.IsValidKnownType: Boolean;
+begin
+  Result := IsValidErtModule or IsValidWindowsService;
 end;
 
 procedure TStableManifest.Init;
@@ -102,10 +122,11 @@ begin
   Comp.Asset := Obj.GetValue<string>('asset', '');
   Comp.DownloadUrl := Obj.GetValue<string>('download_url', '');
   Comp.Sha256 := Obj.GetValue<string>('sha256', '');
-  if not Comp.IsValidErtModule then
+  if not Comp.IsValidKnownType then
   begin
     ErrorMsg := 'Неполные или неверные поля компонента ' + Comp.Id +
-      ' (нужны id/type/version/repository/tag/asset/download_url/sha256, type=ert-module)';
+      ' (нужны id/type/version/repository/tag/asset/download_url/sha256,' +
+      ' type=ert-module|windows-service)';
     Exit;
   end;
   Result := True;
@@ -153,7 +174,7 @@ begin
       Exit;
     end;
 
-    // Пустой {} допустим. Битый присутствующий ert-module — ошибка.
+    // Пустой {} допустим. Битый присутствующий известный type — ошибка.
     for Pair in Components do
     begin
       CompKey := Pair.JsonString.Value;
@@ -166,36 +187,40 @@ begin
       end;
 
       CompType := CompObj.GetValue<string>('type', '');
-      if not SameText(CompType, ComponentTypeErtModule) then
+      if SameText(CompType, ComponentTypeErtModule) or
+         SameText(CompType, ComponentTypeWindowsService) then
       begin
-        LogInfo('Manifest: пропуск type=' + CompType + ' id=' + CompKey + ' (CP2: только ert-module)');
-        Continue;
-      end;
+        if not ParseComponent(CompObj, Comp, ErrorMsg) then
+        begin
+          Manifest.Clear;
+          Exit;
+        end;
 
-      if not ParseComponent(CompObj, Comp, ErrorMsg) then
+        if not SameText(Comp.Id, CompKey) then
+        begin
+          ErrorMsg := Format(
+            'id компонента (%s) не совпадает с ключом (%s)',
+            [Comp.Id, CompKey]
+          );
+          Manifest.Clear;
+          Exit;
+        end;
+
+        if not ParseVersionKey(Comp.Version, Key) then
+        begin
+          ErrorMsg := 'Некорректный version в manifest для ' + Comp.Id + ': ' + Comp.Version;
+          Manifest.Clear;
+          Exit;
+        end;
+
+        Manifest.Components.AddOrSetValue(Comp.Id, Comp);
+      end
+      else
       begin
-        Manifest.Clear;
-        Exit;
+        // updater-app и прочие — пропуск до своего CP
+        LogInfo('Manifest: пропуск type=' + CompType + ' id=' + CompKey +
+          ' (пока не поддерживается)');
       end;
-
-      if not SameText(Comp.Id, CompKey) then
-      begin
-        ErrorMsg := Format(
-          'id компонента (%s) не совпадает с ключом (%s)',
-          [Comp.Id, CompKey]
-        );
-        Manifest.Clear;
-        Exit;
-      end;
-
-      if not ParseVersionKey(Comp.Version, Key) then
-      begin
-        ErrorMsg := 'Некорректный version в manifest для ' + Comp.Id + ': ' + Comp.Version;
-        Manifest.Clear;
-        Exit;
-      end;
-
-      Manifest.Components.AddOrSetValue(Comp.Id, Comp);
     end;
 
     Result := True;
@@ -228,7 +253,7 @@ begin
       end;
     if Summary = '' then
       Summary := '(пусто)';
-    LogInfo('Manifest OK: ' + IntToStr(Manifest.Count) + ' ert-module: ' + Summary);
+    LogInfo('Manifest OK: ' + IntToStr(Manifest.Count) + ' component(s): ' + Summary);
   end
   else
     LogError('Manifest parse: ' + ErrorMsg);

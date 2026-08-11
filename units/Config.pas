@@ -14,6 +14,9 @@ type
 
   TComponentConfig = record
     Instances: TArray<TInstanceConfig>;
+    Exe: string;
+    BaseUrl: string;
+    function HasServiceConfig: Boolean;
   end;
 
   TAppConfig = class
@@ -35,6 +38,8 @@ type
     function FindInstanceIndex(const ComponentId, LabelName: string): Integer;
     procedure SetInstancePath(const ComponentId, LabelName, Path: string);
     function GetInstancePath(const ComponentId, LabelName: string): string;
+    procedure SetServiceConfig(const ComponentId, Exe, BaseUrl: string);
+    function GetServiceConfig(const ComponentId: string): TComponentConfig;
     function ComponentIds: TArray<string>;
     procedure EnsureDefaultSlots;
   end;
@@ -53,10 +58,22 @@ uses
   AppPaths,
   ModuleCatalog;
 
+function TComponentConfig.HasServiceConfig: Boolean;
+begin
+  Result := (Trim(Exe) <> '') or (Trim(BaseUrl) <> '');
+end;
+
 function MakeInstance(const LabelName, Path: string): TInstanceConfig;
 begin
   Result.LabelName := LabelName;
   Result.Path := Path;
+end;
+
+function EmptyComponent: TComponentConfig;
+begin
+  SetLength(Result.Instances, 0);
+  Result.Exe := '';
+  Result.BaseUrl := '';
 end;
 
 constructor TAppConfig.Create;
@@ -82,6 +99,7 @@ var
   I: Integer;
   Existing: TComponentConfig;
   Lbl: string;
+  ServiceId: string;
 begin
   for Entry in ModuleCatalogEntries do
   begin
@@ -102,18 +120,27 @@ begin
     end
     else
     begin
+      Comp := EmptyComponent;
       SetLength(Comp.Instances, Length(Labels));
       for I := 0 to High(Labels) do
         Comp.Instances[I] := MakeInstance(Labels[I], '');
       FComponents.AddOrSetValue(Entry.ComponentId, Comp);
     end;
   end;
+
+  // Слоты служб: не затираем уже сохранённые поля
+  ServiceId := ComponentAtolService;
+  if not FComponents.ContainsKey(ServiceId) then
+    FComponents.AddOrSetValue(ServiceId, EmptyComponent);
+  ServiceId := ComponentShtrihService;
+  if not FComponents.ContainsKey(ServiceId) then
+    FComponents.AddOrSetValue(ServiceId, EmptyComponent);
 end;
 
 function TAppConfig.GetComponent(const Id: string): TComponentConfig;
 begin
   if not FComponents.TryGetValue(Id, Result) then
-    SetLength(Result.Instances, 0);
+    Result := EmptyComponent;
 end;
 
 procedure TAppConfig.SetComponent(const Id: string; const Value: TComponentConfig);
@@ -174,6 +201,21 @@ begin
     Result := ''
   else
     Result := Comp.Instances[Idx].Path;
+end;
+
+procedure TAppConfig.SetServiceConfig(const ComponentId, Exe, BaseUrl: string);
+var
+  Comp: TComponentConfig;
+begin
+  Comp := GetComponent(ComponentId);
+  Comp.Exe := Trim(Exe);
+  Comp.BaseUrl := Trim(BaseUrl);
+  SetComponent(ComponentId, Comp);
+end;
+
+function TAppConfig.GetServiceConfig(const ComponentId: string): TComponentConfig;
+begin
+  Result := GetComponent(ComponentId);
 end;
 
 function TAppConfig.ComponentIds: TArray<string>;
@@ -325,7 +367,11 @@ begin
         CompNode := Pair.JsonValue as TJSONObject;
         if CompNode = nil then
           Continue;
+        Comp := EmptyComponent;
         Comp.Instances := ParseInstances(CompNode.Values['instances'] as TJSONArray);
+        Comp.Exe := CompNode.GetValue<string>('exe', '');
+        Comp.BaseUrl := CompNode.GetValue<string>('base_url', '');
+        // service_name из старых config игнорируем (Delphi ККТ — не Windows Service)
         Config.SetComponent(Pair.JsonString.Value, Comp);
       end;
     end;
@@ -375,15 +421,33 @@ begin
     begin
       Comp := Config.Components[Id];
       CompObj := TJSONObject.Create;
-      InstArr := TJSONArray.Create;
-      CompObj.AddPair('instances', InstArr);
-      for Inst in Comp.Instances do
+
+      if SameText(Id, ComponentAtolService) or SameText(Id, ComponentShtrihService) or
+         Comp.HasServiceConfig then
       begin
-        InstObj := TJSONObject.Create;
-        InstObj.AddPair('label', Inst.LabelName);
-        InstObj.AddPair('path', Inst.Path);
-        InstArr.AddElement(InstObj);
+        CompObj.AddPair('exe', Comp.Exe);
+        CompObj.AddPair('base_url', Comp.BaseUrl);
       end;
+
+      if Length(Comp.Instances) > 0 then
+      begin
+        InstArr := TJSONArray.Create;
+        CompObj.AddPair('instances', InstArr);
+        for Inst in Comp.Instances do
+        begin
+          InstObj := TJSONObject.Create;
+          InstObj.AddPair('label', Inst.LabelName);
+          InstObj.AddPair('path', Inst.Path);
+          InstArr.AddElement(InstObj);
+        end;
+      end
+      else if not (SameText(Id, ComponentAtolService) or SameText(Id, ComponentShtrihService) or
+                   Comp.HasServiceConfig) then
+      begin
+        // ERT без instances — пустой массив для совместимости
+        CompObj.AddPair('instances', TJSONArray.Create);
+      end;
+
       Components.AddPair(Id, CompObj);
     end;
 

@@ -144,6 +144,12 @@
         <DCCReference Include="units\ErtStorage.pas"/>
         <DCCReference Include="units\Backup.pas"/>
         <DCCReference Include="units\UpdateErt.pas"/>
+        <DCCReference Include="units\ExeVersion.pas"/>
+        <DCCReference Include="units\ProcessControl.pas"/>
+        <DCCReference Include="units\ServiceHttp.pas"/>
+        <DCCReference Include="units\ZipUtil.pas"/>
+        <DCCReference Include="units\ServiceRollbackJournal.pas"/>
+        <DCCReference Include="units\UpdateService.pas"/>
         <DCCReference Include="units\WorkingSnapshot.pas"/>
         <DCCReference Include="kktUpdater1c77.pas">
             <Form>frmMain</Form>

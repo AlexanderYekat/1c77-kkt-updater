@@ -124,18 +124,101 @@ object frmMain: TfrmMain
       OnClick = btnSavePathsClick
     end
   end
+  object pnlServices: TPanel
+    Left = 8
+    Top = 164
+    Width = 960
+    Height = 100
+    Anchors = [akLeft, akTop, akRight]
+    BevelOuter = bvNone
+    TabOrder = 1
+    object lblServices: TLabel
+      Left = 0
+      Top = 0
+      Width = 400
+      Height = 15
+      AutoSize = True
+      Caption = 'Services'
+    end
+    object lblAtolSvc: TLabel
+      Left = 0
+      Top = 28
+      Width = 70
+      Height = 15
+      Caption = 'ATOL'
+    end
+    object edtAtolExe: TEdit
+      Left = 80
+      Top = 25
+      Width = 560
+      Height = 23
+      Anchors = [akLeft, akTop, akRight]
+      TabOrder = 0
+    end
+    object btnBrowseAtolExe: TButton
+      Left = 646
+      Top = 24
+      Width = 70
+      Height = 25
+      Anchors = [akTop, akRight]
+      Caption = '...'
+      TabOrder = 1
+      OnClick = btnBrowseAtolExeClick
+    end
+    object edtAtolBaseUrl: TEdit
+      Left = 724
+      Top = 25
+      Width = 226
+      Height = 23
+      Anchors = [akTop, akRight]
+      TabOrder = 2
+    end
+    object lblShtrihSvc: TLabel
+      Left = 0
+      Top = 60
+      Width = 70
+      Height = 15
+      Caption = 'Shtrih'
+    end
+    object edtShtrihExe: TEdit
+      Left = 80
+      Top = 57
+      Width = 560
+      Height = 23
+      Anchors = [akLeft, akTop, akRight]
+      TabOrder = 3
+    end
+    object btnBrowseShtrihExe: TButton
+      Left = 646
+      Top = 56
+      Width = 70
+      Height = 25
+      Anchors = [akTop, akRight]
+      Caption = '...'
+      TabOrder = 4
+      OnClick = btnBrowseShtrihExeClick
+    end
+    object edtShtrihBaseUrl: TEdit
+      Left = 724
+      Top = 57
+      Width = 226
+      Height = 23
+      Anchors = [akTop, akRight]
+      TabOrder = 5
+    end
+  end
   object grdUpdates: TStringGrid
     Left = 8
-    Top = 168
+    Top = 272
     Width = 960
-    Height = 240
+    Height = 140
     Anchors = [akLeft, akTop, akRight]
     ColCount = 4
     DefaultColWidth = 160
     DefaultRowHeight = 22
     FixedCols = 0
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRowSelect, goThumbTracking]
-    TabOrder = 1
+    TabOrder = 2
   end
   object btnCheck: TButton
     Left = 8
@@ -143,7 +226,7 @@ object frmMain: TfrmMain
     Width = 150
     Height = 28
     Caption = 'Check'
-    TabOrder = 2
+    TabOrder = 3
     OnClick = btnCheckClick
   end
   object btnUpdateSelected: TButton
@@ -152,7 +235,7 @@ object frmMain: TfrmMain
     Width = 140
     Height = 28
     Caption = 'Update selected'
-    TabOrder = 3
+    TabOrder = 4
     OnClick = btnUpdateSelectedClick
   end
   object btnUpdateAll: TButton
@@ -161,7 +244,7 @@ object frmMain: TfrmMain
     Width = 120
     Height = 28
     Caption = 'Update all'
-    TabOrder = 4
+    TabOrder = 5
     OnClick = btnUpdateAllClick
   end
   object btnForceDowngrade: TButton
@@ -170,7 +253,7 @@ object frmMain: TfrmMain
     Width = 150
     Height = 28
     Caption = 'Force downgrade'
-    TabOrder = 5
+    TabOrder = 6
     OnClick = btnForceDowngradeClick
   end
   object btnSnapshotWorking: TButton
@@ -179,7 +262,7 @@ object frmMain: TfrmMain
     Width = 120
     Height = 28
     Caption = 'Snapshot'
-    TabOrder = 6
+    TabOrder = 7
     OnClick = btnSnapshotWorkingClick
   end
   object btnRestoreWorking: TButton
@@ -188,7 +271,7 @@ object frmMain: TfrmMain
     Width = 120
     Height = 28
     Caption = 'Restore snapshot'
-    TabOrder = 7
+    TabOrder = 8
     OnClick = btnRestoreWorkingClick
   end
   object btnOpenSnapshots: TButton
@@ -198,7 +281,7 @@ object frmMain: TfrmMain
     Height = 28
     Anchors = [akTop, akRight]
     Caption = 'Open snapshots'
-    TabOrder = 8
+    TabOrder = 9
     OnClick = btnOpenSnapshotsClick
   end
   object lblSnapshotHint: TLabel
@@ -223,7 +306,7 @@ object frmMain: TfrmMain
     Anchors = [akLeft, akTop, akRight, akBottom]
     ReadOnly = True
     ScrollBars = ssVertical
-    TabOrder = 9
+    TabOrder = 10
   end
   object dlgOpen: TOpenDialog
     Left = 900

@@ -17,6 +17,12 @@ uses
   ErtStorage in 'units\ErtStorage.pas',
   Backup in 'units\Backup.pas',
   UpdateErt in 'units\UpdateErt.pas',
+  ExeVersion in 'units\ExeVersion.pas',
+  ProcessControl in 'units\ProcessControl.pas',
+  ServiceHttp in 'units\ServiceHttp.pas',
+  ZipUtil in 'units\ZipUtil.pas',
+  ServiceRollbackJournal in 'units\ServiceRollbackJournal.pas',
+  UpdateService in 'units\UpdateService.pas',
   WorkingSnapshot in 'units\WorkingSnapshot.pas',
   kktUpdater1c77 in 'kktUpdater1c77.pas' {frmMain};
 

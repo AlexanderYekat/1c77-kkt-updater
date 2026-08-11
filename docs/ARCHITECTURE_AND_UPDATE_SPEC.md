@@ -105,9 +105,9 @@ ID не меняются при переименовании exe/ert.
 | `1c77-shtrih-permissive_regime_2024` | `ert-module` | `permissive_regime_2024.ert` | `1c77-tspiot-shtrih` |
 | `1c77-shtrih-razresh_regim_check` | `ert-module` | `razresh_regim_check.ert` | `1c77-tspiot-shtrih` |
 | `1c77-shtrih-razresh_regim_dialog_error` | `ert-module` | `razresh_regim_dialog_error.ert` | `1c77-tspiot-shtrih` |
-| `atol-service` | `windows-service` | Delphi-служба ATOL | `1c77-tspiot-atol` |
-| `shtrih-service` | `windows-service` | Delphi-служба Штрих | `1c77-tspiot-shtrih` |
-| `fmuapi-proxy` | `windows-service` | C# proxy | `proxy-1c-fmuapi` |
+| `atol-service` | `windows-service` | Delphi-приложение ATOL (процесс, не SCM) | `1c77-tspiot-atol` |
+| `shtrih-service` | `windows-service` | Delphi-приложение Штрих (процесс, не SCM) | `1c77-tspiot-shtrih` |
+| `fmuapi-proxy` | `windows-service` | C# proxy (Windows Service / SCM) | `proxy-1c-fmuapi` |
 | `kkt-updater` | `updater-app` | Сам Updater | `1c77-kkt-updater` |
 
 В одном репозитории (atol / shtrih) — **несколько** независимо версионируемых продуктов: каждый модуль ERT и отдельно service. Updater **не** опирается на «latest release» репозитория.
@@ -160,7 +160,8 @@ stable.json (HTTPS)
         │
         ├── ert-module: для каждого экземпляра ERT → backup → MD Programm text → проверить version
         │
-        └── windows-service: backup → stop → replace (без конфига клиента) → start → /version + /health
+        └── windows-service (Delphi app): ZIP preflight → stop process → journal/backup → replace → start exe → retry /version + /health
+            (C# proxy / SCM — CP4)
 ```
 
 ---
@@ -306,14 +307,32 @@ Legacy без `component:`: **не** принимать любой `ver:`. То�
 
 ---
 
-## 8. Обновление служб (`type: windows-service`)
+## 8. Обновление `type: windows-service`
 
-Версия в EXE: `FileVersion` / `ProductVersion`, плюс HTTP:
+Для Delphi ATOL/Штрих (CP3) — это **приложение** (процесс). Для C# proxy (CP4) — Windows Service / SCM.
 
-- `GET /version` → `{ component, version }`
+Канон бизнес-версии: `YYYY.MM.DD-NN` (из `GET /version` и `ProductVersion`).  
+`FileVersion` в exe — четырёхчисловая форма Windows (`2026.8.9.1`); как fallback нормализуется в канон (`2026.08.09-01`).
+
+HTTP:
+
+- `GET /version` → `{ component, version }` (канон)
 - `GET /health`
 
-Последовательность: скачать ZIP → SHA-256 → backup → stop → replace (**не** затирать конфиг клиента) → start → `/version` + `/health`. При провале — rollback.
+Контракт Release ZIP: **не содержит** клиентских конфигов; deny-list в updater — страховка.
+
+Последовательность (детали и journal rollback — в техплане CP3):
+
+```text
+config.exe exists
+  → download ZIP → SHA-256 → safe unpack + preflight (в т.ч. version exe == manifest)
+  → stop process → journal/backup → replace → start exe
+  → retry /version + /health
+```
+
+Delphi ATOL/Штрих — **приложение**, не Windows Service (никогда). SCM stop/start — для C# proxy (CP4).
+
+Обычный auto-downgrade запрещён; явный аварийный откат канала (если появится в manifest) — отдельным решением, не «навсегда невозможно».
 
 Сборка Delphi на первом этапе — **локально**. CI Delphi не блокирует updater. C# proxy — Actions по тегу `proxy-*`.
 
@@ -358,7 +377,7 @@ JSON, `schema_version: 1`. Пользовательские пути **нико�
 
 atol-service:
   exe: ...
-  service_name: ...
+  base_url: ...
 ```
 
 Пути — вручную и/или из реестра (поиск по известным именам в `ExtForms\` / `ExtForms\Equip\`).
@@ -461,34 +480,34 @@ proxy-1c-fmuapi-YYYY.MM.DD-NN.zip
 
 ### CP0 — Подготовка
 
-- [ ] Spec принят; ID, `type`, формат версии зафиксированы
-- [ ] Чтение баз из реестра (как installer)
-- [ ] Сопоставление: ATOL — Злобин / Стрелец (два экземпляра); Штрих — Сургут (один)
+- [x] Spec принят; ID, `type`, формат версии зафиксированы
+- [x] Чтение баз из реестра (как installer)
+- [x] Сопоставление: ATOL — Злобин / Стрелец (два экземпляра); Штрих — Сургут (один)
 
 ### CP1 — MVP: пайплайн ERT (первый модуль ATOL)
 
 - [x] Пайплайн для `ert-module`: HTTPS manifest, TXT UTF-8 без BOM, SHA-256, backup, `MD Programm text`, verify/rollback
 - [x] UI / config: экземпляры Злобин / Стрелец; Проверить / Обновить
-- [ ] В текущем коде CP1 обновляется только `1c77-atol-module` (`frATOL54*`). Ограничение **будет снято при реализации CP2**
+- [x] Ограничение «только `1c77-atol-module`» снято в CP2 (ручной прогон принят)
 
 ### CP2 — Все модули ERT ATOL + Штрих
 
-- [ ] Каждый `ert-module` из §3 — отдельный id в manifest; один пайплайн на всех
-- [ ] Линейка Штрих (Сургут) + остальные модули ATOL (не только `frATOL54_comm`)
-- [ ] Legacy gate по stem (`1c77-atol-module`: `frATOL54` и `frATOL54_comm`); «нет в канале» ≠ «модуль второго сорта»
-- [ ] `stable.json` / example: реальные публикации по id; asset UTF-8 без BOM
-- [ ] Код конфигурации (`module-form-of-check`, глобальный модуль) — вне scope updater
+- [x] Каждый `ert-module` из §3 — отдельный id в manifest; один пайплайн на всех
+- [x] Линейка Штрих (Сургут) + остальные модули ATOL (не только `frATOL54_comm`)
+- [x] Legacy gate по stem (`1c77-atol-module`: `frATOL54` и `frATOL54_comm`); «нет в канале» ≠ «модуль второго сорта»
+- [x] `stable.json` / example: реальные публикации по id; asset UTF-8 без BOM
+- [x] Код конфигурации (`module-form-of-check`, глобальный модуль) — вне scope updater
 
-### CP3 — Delphi-службы
+### CP3 — Delphi-приложения ККТ (ATOL + Штрих)
 
-- [ ] FileVersion/ProductVersion + `/version` + `/health`
-- [ ] ZIP без клиентского конфига; тег `service-*`
-- [ ] stop → backup → replace → start → health; rollback
-- [ ] Локальная сборка + release-скрипт
+- [ ] ProductVersion (канон) + FileVersion + `/version` + `/health` в репах
+- [x] Updater: ZIP deny-list; config `exe`/`base_url`; stop/start **процесса** (не SCM)
+- [x] Updater: preflight → stop process → journal → replace → start → retry health
+- [ ] Локальная сборка + release ZIP без клиентского ini
 
 ### CP4 — C# proxy
 
-- [ ] metadata + `/version` + `/health`; tag `proxy-*`; Actions
+- [ ] metadata + `/version` + `/health`; tag `proxy-*`; Actions; **Windows Service / SCM**
 
 ### CP5 — Зависимости `requires`
 
