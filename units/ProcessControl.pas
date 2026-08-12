@@ -5,8 +5,9 @@ interface
 /// Управление процессом Delphi-приложения ККТ (не Windows Service).
 function IsProcessRunningForExe(const ExePath: string; out PidCount: Integer;
   out ErrorMsg: string): Boolean;
+/// Остановка: HTTP POST /exit (если BaseUrl задан) → wait → WM_CLOSE (legacy) → Terminate.
 function StopProcessForExe(const ExePath: string; TimeoutMs: Integer;
-  out ErrorMsg: string): Boolean;
+  out ErrorMsg: string; const BaseUrl: string = ''): Boolean;
 function StartProcessExe(const ExePath: string; out ErrorMsg: string): Boolean;
 
 implementation
@@ -17,7 +18,8 @@ uses
   Winapi.Windows,
   Winapi.Messages,
   Winapi.TlHelp32,
-  AppLog;
+  AppLog,
+  ServiceHttp;
 
 const
   // В части SDK/Delphi-юнитов константа отсутствует
@@ -219,11 +221,12 @@ begin
 end;
 
 function StopProcessForExe(const ExePath: string; TimeoutMs: Integer;
-  out ErrorMsg: string): Boolean;
+  out ErrorMsg: string; const BaseUrl: string): Boolean;
 var
   Pids, Left: TPidList;
   SoftWait: Integer;
   I: Integer;
+  ExitErr: string;
 begin
   Result := False;
   ErrorMsg := '';
@@ -241,12 +244,29 @@ begin
   end;
 
   LogInfo(Format('Остановка процесса %s (pid count=%d)', [ExePath, Length(Pids)]));
-  for I := 0 to High(Pids) do
-    RequestCloseProcessWindows(Pids[I]);
 
   SoftWait := TimeoutMs div 2;
   if SoftWait < 2000 then
     SoftWait := 2000;
+
+  // Новые сборки: закрытие окна = трей; реальный exit только через /exit.
+  // Даже при ошибке HTTP (обрыв после ответа) ждём — процесс мог уже выйти.
+  if Trim(BaseUrl) <> '' then
+  begin
+    ExitErr := '';
+    if not RequestServiceExit(BaseUrl, ExitErr) then
+      LogInfo('HTTP /exit не подтверждён (ждём / fallback): ' + ExitErr);
+    if WaitPidsExit(Pids, SoftWait) then
+    begin
+      LogInfo('Процесс завершён (HTTP /exit): ' + ExePath);
+      Exit(True);
+    end;
+  end;
+
+  // Старые сборки без /exit / hide-to-tray: мягкое закрытие окон.
+  for I := 0 to High(Pids) do
+    RequestCloseProcessWindows(Pids[I]);
+
   if WaitPidsExit(Pids, SoftWait) then
   begin
     LogInfo('Процесс завершён (WM_CLOSE): ' + ExePath);

@@ -227,7 +227,7 @@ begin
   end;
 
   // --- Stop process ---
-  if not StopProcessForExe(Svc.Exe, ServiceProcessWaitTimeoutMs, Err) then
+  if not StopProcessForExe(Svc.Exe, ServiceProcessWaitTimeoutMs, Err, Svc.BaseUrl) then
   begin
     Result.Message := 'Не удалось остановить процесс, диск не изменён: ' + Err;
     Exit;
@@ -287,7 +287,7 @@ begin
   if not WaitServiceVersionAndHealth(Svc.BaseUrl, Comp.Id, Comp.Version, Svc.Exe,
     ServiceHealthRetryIntervalMs, ServiceHealthRetryMaxMs, Err) then
   begin
-    if not StopProcessForExe(Svc.Exe, ServiceProcessWaitTimeoutMs, Err) then
+    if not StopProcessForExe(Svc.Exe, ServiceProcessWaitTimeoutMs, Err, Svc.BaseUrl) then
       LogWarn('Stop перед rollback verify: ' + Err);
     if RollbackServiceJournal(Journal, Err) then
     begin

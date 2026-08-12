@@ -23,7 +23,7 @@ C# proxy как настоящая Windows-служба — **CP4**.
 config (exe + base_url)
   → download ZIP → SHA
   → unpack temp + preflight (пути, exe, version пакета == manifest)
-  → stop process (WM_CLOSE → wait → Terminate)
+  → stop process (HTTP /exit → wait → WM_CLOSE → Terminate)
   → journal + backup заменяемых файлов
   → replace
   → start exe

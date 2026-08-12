@@ -5,9 +5,13 @@ interface
 /// Локальный HTTP к службе (http://127.0.0.1 / localhost). HTTPS для GitHub — в HttpDownload.
 function ServiceHttpGet(const Url: string; out Content: string;
   out ErrorMsg: string): Boolean;
+function ServiceHttpPost(const Url, Body: string; out Content: string;
+  out StatusCode: Integer; out ErrorMsg: string): Boolean;
 function GetServiceVersion(const BaseUrl, ExpectedComponentId: string;
   out Version: string; out ErrorMsg: string): Boolean;
 function GetServiceHealthOk(const BaseUrl: string; out ErrorMsg: string): Boolean;
+/// POST /exit — штатный stop для сборок с hide-to-tray. True = HTTP 200.
+function RequestServiceExit(const BaseUrl: string; out ErrorMsg: string): Boolean;
 /// После start: /version + /health. Если /version нет (старые сборки, HTTP 404) —
 /// fallback: VERSIONINFO exe + /health.
 function WaitServiceVersionAndHealth(const BaseUrl, ExpectedComponentId,
@@ -19,6 +23,7 @@ implementation
 
 uses
   System.SysUtils,
+  System.Classes,
   System.StrUtils,
   System.JSON,
   System.Net.HttpClient,
@@ -92,6 +97,68 @@ begin
   finally
     Client.Free;
   end;
+end;
+
+function ServiceHttpPost(const Url, Body: string; out Content: string;
+  out StatusCode: Integer; out ErrorMsg: string): Boolean;
+var
+  Client: THTTPClient;
+  Resp: IHTTPResponse;
+  Stream: TStringStream;
+begin
+  Result := False;
+  Content := '';
+  StatusCode := 0;
+  ErrorMsg := '';
+  if not IsAllowedLocalUrl(Url, ErrorMsg) then
+    Exit;
+
+  Client := THTTPClient.Create;
+  Stream := TStringStream.Create(Body, TEncoding.UTF8);
+  try
+    try
+      Client.ConnectionTimeout := 5000;
+      Client.ResponseTimeout := 10000;
+      Client.UserAgent := '1C77-KKT-Updater/1.0';
+      Client.HandleRedirects := False;
+      Stream.Position := 0;
+      Resp := Client.Post(Url, Stream);
+      StatusCode := Resp.StatusCode;
+      Content := Resp.ContentAsString(TEncoding.UTF8);
+      Result := StatusCode = 200;
+      if not Result then
+        ErrorMsg := Format('HTTP %d: %s', [StatusCode, Url]);
+    except
+      on E: Exception do
+      begin
+        // Процесс мог успеть выйти сразу после ответа — соединение рвётся.
+        ErrorMsg := E.Message;
+      end;
+    end;
+  finally
+    Stream.Free;
+    Client.Free;
+  end;
+end;
+
+function RequestServiceExit(const BaseUrl: string; out ErrorMsg: string): Boolean;
+var
+  Url, Content: string;
+  StatusCode: Integer;
+begin
+  Result := False;
+  ErrorMsg := '';
+  if Trim(BaseUrl) = '' then
+  begin
+    ErrorMsg := 'base_url не задан';
+    Exit;
+  end;
+  Url := JoinBaseUrl(BaseUrl, EndpointExit);
+  Result := ServiceHttpPost(Url, '{}', Content, StatusCode, ErrorMsg);
+  if Result then
+    LogInfo('HTTP /exit OK: ' + Url)
+  else
+    LogInfo(Format('HTTP /exit не принят (%s): %s', [Url, ErrorMsg]));
 end;
 
 function GetServiceVersion(const BaseUrl, ExpectedComponentId: string;

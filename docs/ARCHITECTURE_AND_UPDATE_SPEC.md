@@ -343,7 +343,7 @@ Delphi ATOL/Штрих — **приложение**, не Windows Service (ни�
 Файл:
 
 ```text
-%ProgramData%\1C77KKTUpdater\config.json
+%ProgramData%\CTO_KSM\1C77KKTUpdater\config.json
 ```
 
 JSON, `schema_version: 1`. Пользовательские пути **никогда** не перезаписываются из `stable.json`.

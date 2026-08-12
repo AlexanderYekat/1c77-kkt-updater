@@ -32,7 +32,7 @@
   manifest + config (exe, base_url)
   → download ZIP → SHA-256
   → безопасный unpack в temp + preflight пакета (включая version exe)
-  → stop process (WM_CLOSE → wait → Terminate) по полному пути config.exe
+  → stop process (HTTP /exit → wait → WM_CLOSE → Terminate) по config.exe + base_url
   → rollback journal + backup только заменяемых файлов
   → replace
   → start exe
@@ -53,7 +53,7 @@
 ### Откуда updater знает «куда класть»
 
 ```text
-%ProgramData%\1C77KKTUpdater\config.json
+%ProgramData%\CTO_KSM\1C77KKTUpdater\config.json
 
 atol-service:
   exe: C:\Program Files\CTO_KSM\kktserver\kktserverindyProject.exe
@@ -98,7 +98,8 @@ Deny-list: `*.ini`, `config.json`, `settings.*`, `*.log`.
 ## Зафиксированные решения
 
 - type `windows-service` — историческое имя; runtime = **процесс**
-- Stop: WM_CLOSE → wait → TerminateProcess (image path = config.exe)
+- Stop: HTTP POST `/exit` (base_url) → wait → WM_CLOSE (legacy) → TerminateProcess (image path = config.exe)
+  - Новые Delphi-сборки: закрытие окна пользователем = трей; реальный выход только через `/exit`
 - Start: CreateProcess(exe); если процесс не был запущен — stop = OK
 - Нет `service_name` / SCM / BinaryPath
 - Auto-downgrade запрещён; `base_url` целиком; endpoints `/version`, `/health`

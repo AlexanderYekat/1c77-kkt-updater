@@ -197,6 +197,7 @@ begin
     AppendStatus('Конфиг: ' + ConfigFilePath);
 
   LoadPathsFromConfig;
+  ApplyPathsToConfig; // подставить дефолты installer в память (на диск — по «Сохранить»)
   DetectBasesInRegistry(HasZ, HasS, HasG, False);
   ApplyPathPanelVisibility(HasZ, HasS, HasG);
   LayoutPanels;
@@ -252,9 +253,9 @@ begin
   if Assigned(edtShtrihBaseUrl) then
     edtShtrihBaseUrl.TextHint := DefaultServiceBaseUrl;
   if Assigned(edtAtolExe) then
-    edtAtolExe.TextHint := HintServiceExeFileName;
+    edtAtolExe.TextHint := DefaultServiceExePath;
   if Assigned(edtShtrihExe) then
-    edtShtrihExe.TextHint := HintServiceExeFileName;
+    edtShtrihExe.TextHint := DefaultServiceExePath;
   dlgOpen.Title := 'Выберите файл ERT';
   dlgOpen.Filter := 'ERT|*.ert|Все файлы|*.*';
 end;
@@ -291,28 +292,34 @@ end;
 procedure TfrmMain.LoadPathsFromConfig;
 var
   Svc: TComponentConfig;
+  DefExe: string;
 begin
   edtZlobin.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelZlobin);
   edtStrelets.Text := FConfig.GetInstancePath(ComponentAtolModule, LabelStrelets);
   edtSurgut.Text := FConfig.GetInstancePath(ComponentShtrihModule, LabelSurgut);
 
+  // Пустые поля — как installer_kktserver.iss: Program Files\CTO_KSM\kktserver + :2580
+  DefExe := DefaultServiceExePath;
+
   Svc := FConfig.GetServiceConfig(ComponentAtolService);
-  edtAtolExe.Text := Svc.Exe;
+  if Trim(Svc.Exe) <> '' then
+    edtAtolExe.Text := Svc.Exe
+  else
+    edtAtolExe.Text := DefExe;
   if Trim(Svc.BaseUrl) <> '' then
     edtAtolBaseUrl.Text := Svc.BaseUrl
-  else if Trim(Svc.Exe) <> '' then
-    edtAtolBaseUrl.Text := DefaultServiceBaseUrl
   else
-    edtAtolBaseUrl.Text := '';
+    edtAtolBaseUrl.Text := DefaultServiceBaseUrl;
 
   Svc := FConfig.GetServiceConfig(ComponentShtrihService);
-  edtShtrihExe.Text := Svc.Exe;
+  if Trim(Svc.Exe) <> '' then
+    edtShtrihExe.Text := Svc.Exe
+  else
+    edtShtrihExe.Text := DefExe;
   if Trim(Svc.BaseUrl) <> '' then
     edtShtrihBaseUrl.Text := Svc.BaseUrl
-  else if Trim(Svc.Exe) <> '' then
-    edtShtrihBaseUrl.Text := DefaultServiceBaseUrl
   else
-    edtShtrihBaseUrl.Text := '';
+    edtShtrihBaseUrl.Text := DefaultServiceBaseUrl;
 end;
 
 procedure TfrmMain.DiscoverAndStoreLineModules(Line: TModuleLine;
@@ -343,8 +350,15 @@ end;
 function EffectiveServiceBaseUrl(const Exe, BaseUrl: string): string;
 begin
   Result := Trim(BaseUrl);
-  if (Result = '') and (Trim(Exe) <> '') then
+  if Result = '' then
     Result := DefaultServiceBaseUrl;
+end;
+
+function EffectiveServiceExe(const Exe: string): string;
+begin
+  Result := Trim(Exe);
+  if Result = '' then
+    Result := DefaultServiceExePath;
 end;
 
 procedure TfrmMain.ApplyPathsToConfig;
@@ -353,9 +367,11 @@ begin
   FConfig.SetInstancePath(ComponentAtolModule, LabelStrelets, edtStrelets.Text);
   FConfig.SetInstancePath(ComponentShtrihModule, LabelSurgut, edtSurgut.Text);
 
-  FConfig.SetServiceConfig(ComponentAtolService, edtAtolExe.Text,
+  FConfig.SetServiceConfig(ComponentAtolService,
+    EffectiveServiceExe(edtAtolExe.Text),
     EffectiveServiceBaseUrl(edtAtolExe.Text, edtAtolBaseUrl.Text));
-  FConfig.SetServiceConfig(ComponentShtrihService, edtShtrihExe.Text,
+  FConfig.SetServiceConfig(ComponentShtrihService,
+    EffectiveServiceExe(edtShtrihExe.Text),
     EffectiveServiceBaseUrl(edtShtrihExe.Text, edtShtrihBaseUrl.Text));
 
   if FShowAtol then

@@ -6,7 +6,7 @@ const
   AppName = '1C77 KKT Updater';
   /// Должна совпадать с VerInfo FileVersion/ProductVersion в .dproj
   AppVersion = '2026.8.9.1';
-  AppDataFolderName = '1C77KKTUpdater';
+  AppDataFolderName = '1C77KKTUpdater'; // %ProgramData%\CTO_KSM\1C77KKTUpdater\
 
   SchemaVersion = 1;
 
@@ -31,9 +31,13 @@ const
   DefaultShtrihErtFileName = 'fr_elves-12.ert';
   DefaultShtrihTestErtFileName = 'fr_elves_test.ert';
 
-  { Типичное имя exe службы (подсказка UI; путь — только из config) }
+  // Как DefaultDirName в installer_kktserver.iss: Program Files\CTO_KSM\kktserver
+  DefaultServiceVendorDir = 'CTO_KSM';
+  DefaultServiceAppDir = 'kktserver';
+  DefaultServiceExeFileName = 'kktserverindyProject.exe';
   HintServiceExeFileName = 'kktserverindyProject.exe';
-  { Дефолт base_url, если в UI/config пусто, но exe задан }
+  // Дефолт base_url / порт — как DefaultHttpPort в installer_kktserver.iss
+  DefaultServiceHttpPort = 2580;
   DefaultServiceBaseUrl = 'http://127.0.0.1:2580';
 
   DefaultManifestUrl =
@@ -56,6 +60,8 @@ const
 
   EndpointVersion = '/version';
   EndpointHealth = '/health';
+  /// Штатное завершение Delphi-службы (hide-to-tray; WM_CLOSE больше не убивает процесс)
+  EndpointExit = '/exit';
 
 implementation
 
