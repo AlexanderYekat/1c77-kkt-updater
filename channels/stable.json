@@ -104,12 +104,12 @@
     "atol-service": {
       "id": "atol-service",
       "type": "windows-service",
-      "version": "2026.08.12-01",
+      "version": "2026.08.12-02",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "service-2026.08.12-01",
-      "asset": "atol-service-2026.08.12-01.zip",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/service-2026.08.12-01/atol-service-2026.08.12-01.zip",
-      "sha256": "8abd1274ab9569eab2e3824cdbca4971ca17199aa3d2004d2dc4e08123fa84b4"
+      "tag": "service-2026.08.12-02",
+      "asset": "atol-service-2026.08.12-02.zip",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/service-2026.08.12-02/atol-service-2026.08.12-02.zip",
+      "sha256": "ff9b27110db87ccec0b120fcadf4ad6d2d22b03abac051bc41b121015f136862"
     }
   }
 }
