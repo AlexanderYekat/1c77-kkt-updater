@@ -4,12 +4,12 @@
     "1c77-atol-module": {
       "id": "1c77-atol-module",
       "type": "ert-module",
-      "version": "2026.08.12-03",
+      "version": "2026.08.12-04",
       "repository": "AlexanderYekat/1c77-tspiot-atol",
-      "tag": "1c77-atol-module-2026.08.12-03",
-      "asset": "1c77-atol-module-2026.08.12-03.txt",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-module-2026.08.12-03/1c77-atol-module-2026.08.12-03.txt",
-      "sha256": "f8d30d8699569eca324424f015b953ef8b45007fac2286f282f4317d8a31877b"
+      "tag": "1c77-atol-module-2026.08.12-04",
+      "asset": "1c77-atol-module-2026.08.12-04.txt",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/1c77-atol-module-2026.08.12-04/1c77-atol-module-2026.08.12-04.txt",
+      "sha256": "73a43db0b3784709fee36fbc7a15511e5aa688d50c6ddab3ec4a879423d00918"
     },
     "1c77-atol-permissive_regime_2024": {
       "id": "1c77-atol-permissive_regime_2024",
