@@ -5,7 +5,7 @@ interface
 const
   AppName = '1C77 KKT Updater';
   /// Должна совпадать с VerInfo FileVersion/ProductVersion в .dproj
-  AppVersion = '2026.8.9.1';
+  AppVersion = '2026.8.12.1';
   AppDataFolderName = '1C77KKTUpdater'; // %ProgramData%\CTO_KSM\1C77KKTUpdater\
 
   SchemaVersion = 1;

@@ -1,4 +1,4 @@
-unit ServiceRollbackJournal;
+﻿unit ServiceRollbackJournal;
 
 interface
 
@@ -229,6 +229,12 @@ begin
     on Ex: Exception do
     begin
       ErrorMsg := 'Ошибка replace: ' + Ex.Message;
+      if (Pos('отказано в доступе', LowerCase(Ex.Message)) > 0) or
+         (Pos('access is denied', LowerCase(Ex.Message)) > 0) or
+         (Pos('access denied', LowerCase(Ex.Message)) > 0) then
+        ErrorMsg := ErrorMsg +
+          #13#10'Запустите updater от имени администратора ' +
+          '(файл службы в Program Files).';
       LogError(ErrorMsg);
     end;
   end;

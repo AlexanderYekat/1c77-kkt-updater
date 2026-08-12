@@ -1,4 +1,4 @@
-unit kktUpdater1c77;
+﻿unit kktUpdater1c77;
 
 interface
 
@@ -126,6 +126,7 @@ uses
   AppConsts,
   AppPaths,
   AppLog,
+  AppElevation,
   RegistryBases,
   VersionParse,
   ErtStorage,
@@ -994,7 +995,25 @@ function TfrmMain.UpdateOneServiceRow(const Row: TGridRowInfo;
 var
   Svc: TComponentConfig;
 begin
+  Result.Ok := False;
+  Result.RolledBack := False;
+  Result.CriticalRollbackFailed := False;
+  Result.SkippedDowngrade := False;
+  Result.Message := '';
+  Result.InstalledVersion := '';
+
   Svc := FConfig.GetServiceConfig(Row.ComponentId);
+
+  // Elevation запрашивается один раз в RunUpdates; здесь только пропуск.
+  if not IsProcessElevated then
+  begin
+    Result.Message :=
+      'Пропущено: обновление Delphi-службы требует прав администратора. ' +
+      'Модули 1С обновляются без повышения прав.';
+    AppendStatus(Row.IbLabel + ' [' + Row.ComponentId + ']: ' + Result.Message);
+    Exit;
+  end;
+
   if ForceDowngrade then
     LogInfo(Format('FORCE downgrade app id=%s exe=%s',
       [Row.ComponentId, Svc.Exe]))
@@ -1004,7 +1023,9 @@ begin
   Result := UpdateWindowsService(Comp, Svc, ForceDowngrade);
   AppendStatus(Row.IbLabel + ' [' + Row.ComponentId + ']: ' + Result.Message);
   if Result.CriticalRollbackFailed then
-    MessageDlg(Result.Message, mtError, [mbOK], 0);
+    MessageDlg(Result.Message, mtError, [mbOK], 0)
+  else if (not Result.Ok) and (not Result.SkippedDowngrade) and (Trim(Result.Message) <> '') then
+    MessageDlg(Result.Message, mtWarning, [mbOK], 0);
 end;
 
 procedure TfrmMain.RunUpdates(OnlySelected: Boolean; ForceDowngrade: Boolean);
@@ -1022,6 +1043,8 @@ var
   PrepText: string;
   Res: TUpdateErtResult;
   SvcRes: TUpdateServiceResult;
+  NeedServiceElev: Boolean;
+  ElevErr: string;
 begin
   ApplyPathsToConfig;
   if not FHasManifest then
@@ -1094,8 +1117,7 @@ begin
             Comp.Version
           ]
         ),
-        mtWarning, [mbYes, mbNo], 0
-      ) <> mrYes then
+        mtWarning, [mbYes, mbNo], 0) <> mrYes then
         Exit;
     end;
     Indices := [RowIdx];
@@ -1122,6 +1144,41 @@ begin
   begin
     MessageDlg('Нет строк для обновления.', mtInformation, [mbOK], 0);
     Exit;
+  end;
+
+  // Один раз: если в списке есть Delphi-служба и нет elevation — предложить runas.
+  NeedServiceElev := False;
+  for I := 0 to High(Indices) do
+    if FRows[Indices[I]].Kind = gkService then
+    begin
+      NeedServiceElev := True;
+      Break;
+    end;
+  if NeedServiceElev and not IsProcessElevated then
+  begin
+    case MessageDlg(
+      'В списке есть Delphi-приложение ККТ (Program Files).'#13#10 +
+      'Для него нужны права администратора.'#13#10#13#10 +
+      'Модули 1С можно обновить и без повышения прав.'#13#10#13#10 +
+      'Перезапустить updater от имени администратора?'#13#10 +
+      '(«Нет» — обновить только модули 1С, службу пропустить)',
+      mtConfirmation, [mbYes, mbNo], 0) of
+      mrYes:
+        begin
+          if RelaunchElevated(ElevErr) then
+          begin
+            AppendStatus('Запущен экземпляр с правами администратора.');
+            Application.Terminate;
+            Exit;
+          end;
+          AppendStatus(ElevErr + ' Службы будут пропущены; модули 1С — обновляются.');
+          MessageDlg(ElevErr + #13#10#13#10 +
+            'Службы будут пропущены. Модули 1С обновляются без админа.',
+            mtWarning, [mbOK], 0);
+        end;
+    else
+      AppendStatus('Службы пропущены (без админа). Обновление модулей 1С продолжается.');
+    end;
   end;
 
   OkCount := 0;

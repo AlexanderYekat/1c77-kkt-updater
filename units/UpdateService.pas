@@ -1,4 +1,4 @@
-unit UpdateService;
+﻿unit UpdateService;
 
 interface
 
@@ -308,7 +308,8 @@ begin
   ClearServiceJournalFile(Journal);
   Result.Ok := True;
   Result.InstalledVersion := Comp.Version;
-  Result.Message := Format('%s обновлён → %s', [Comp.Id, Comp.Version]);
+  Result.Message := Format('%s ' + #$043E#$0431#$043D#$043E#$0432#$043B#$0451#$043D + ' ' +
+    #$2192 + ' %s', [Comp.Id, Comp.Version]);
   LogInfo(Result.Message);
 
   if (TempDir <> '') and TDirectory.Exists(TempDir) then

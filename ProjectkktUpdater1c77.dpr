@@ -23,6 +23,7 @@ uses
   ZipUtil in 'units\ZipUtil.pas',
   ServiceRollbackJournal in 'units\ServiceRollbackJournal.pas',
   UpdateService in 'units\UpdateService.pas',
+  AppElevation in 'units\AppElevation.pas',
   WorkingSnapshot in 'units\WorkingSnapshot.pas',
   kktUpdater1c77 in 'kktUpdater1c77.pas' {frmMain};
 
