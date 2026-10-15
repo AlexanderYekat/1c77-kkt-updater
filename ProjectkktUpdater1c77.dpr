@@ -25,6 +25,7 @@ uses
   UpdateService in 'units\UpdateService.pas',
   AppElevation in 'units\AppElevation.pas',
   WorkingSnapshot in 'units\WorkingSnapshot.pas',
+  KktHosts in 'units\KktHosts.pas',
   kktUpdater1c77 in 'kktUpdater1c77.pas' {frmMain};
 
 {$R *.res}

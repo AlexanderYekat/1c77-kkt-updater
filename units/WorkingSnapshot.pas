@@ -46,6 +46,10 @@ function RestoreWorkingSnapshot(
   out ErrorMsg: string
 ): Boolean;
 
+/// <ИБ>\ExtForms для ERT из ExtForms или ExtForms\Equip, иначе ''.
+function ExtFormsRootFromErt(const ErtPath: string): string;
+function IbRootFromExtForms(const ExtFormsRoot: string): string;
+
 implementation
 
 uses

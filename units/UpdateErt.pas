@@ -34,6 +34,7 @@ implementation
 
 uses
   System.SysUtils,
+  System.StrUtils,
   System.IOUtils,
   AppConsts,
   AppPaths,
@@ -44,7 +45,8 @@ uses
   ModuleCatalog,
   ErtStorage,
   ErtCodec,
-  Backup;
+  Backup,
+  KktHosts;
 
 function CheckComponentGate(const ModuleText, ExpectedComponentId: string;
   out ErrorMsg: string): Boolean;
@@ -180,7 +182,7 @@ function UpdateErtInstance(
 var
   SoftText, SnapshotText: string;
   SoftId, SnapId, After: TModuleIdentity;
-  GateErr, BakErr, RollErr: string;
+  GateErr, BakErr, RollErr, HostsMsg: string;
   Wrote: Boolean;
   Normalized: string;
 begin
@@ -369,6 +371,15 @@ begin
     Result.InstalledVersion := After.VersionRaw;
     Result.Message := Format('Обновлено %s → %s', [InstanceLabel, After.VersionRaw]);
     LogInfo(Result.Message);
+
+    // Старый permissive_regime_2024 мог содержать захардкоженную подмену
+    // «имя RDP-клиента → IP»; новый берёт её из <ИБ>\kkt_hosts.txt.
+    if EndsText('-permissive_regime_2024', Comp.Id) then
+    begin
+      HostsMsg := MigrateHardcodedKktHosts(SnapshotText, ErtPath);
+      if HostsMsg <> '' then
+        Result.Message := Result.Message + '; ' + HostsMsg;
+    end;
   except
     on E: Exception do
     begin

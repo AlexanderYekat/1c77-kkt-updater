@@ -153,6 +153,7 @@
         <DCCReference Include="units\UpdateService.pas"/>
         <DCCReference Include="units\AppElevation.pas"/>
         <DCCReference Include="units\WorkingSnapshot.pas"/>
+        <DCCReference Include="units\KktHosts.pas"/>
         <DCCReference Include="kktUpdater1c77.pas">
             <Form>frmMain</Form>
             <FormType>dfm</FormType>
