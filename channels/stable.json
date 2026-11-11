@@ -110,6 +110,16 @@
       "asset": "atol-service-2026.08.13-02.zip",
       "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-atol/releases/download/service-2026.08.13-02/atol-service-2026.08.13-02.zip",
       "sha256": "e1aa38c3065ceec8b4dea2fabb68ecb03a5ba41da2879748e0ff5ef9f09ccd81"
+    },
+    "shtrih-service": {
+      "id": "shtrih-service",
+      "type": "windows-service",
+      "version": "2026.11.11-01",
+      "repository": "AlexanderYekat/1c77-tspiot-shtrih",
+      "tag": "service-2026.11.11-01",
+      "asset": "shtrih-service-2026.11.11-01.zip",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/service-2026.11.11-01/shtrih-service-2026.11.11-01.zip",
+      "sha256": "a7f6285d234b84efbc328e51cc41ab52dc055ce2d226e57a69939c1b76f0c892"
     }
   }
 }
