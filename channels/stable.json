@@ -114,12 +114,12 @@
     "shtrih-service": {
       "id": "shtrih-service",
       "type": "windows-service",
-      "version": "2026.11.11-01",
+      "version": "2026.11.12-02",
       "repository": "AlexanderYekat/1c77-tspiot-shtrih",
-      "tag": "service-2026.11.11-01",
-      "asset": "shtrih-service-2026.11.11-01.zip",
-      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/service-2026.11.11-01/shtrih-service-2026.11.11-01.zip",
-      "sha256": "a7f6285d234b84efbc328e51cc41ab52dc055ce2d226e57a69939c1b76f0c892"
+      "tag": "service-2026.11.12-02",
+      "asset": "shtrih-service-2026.11.12-02.zip",
+      "download_url": "https://github.com/AlexanderYekat/1c77-tspiot-shtrih/releases/download/service-2026.11.12-02/shtrih-service-2026.11.12-02.zip",
+      "sha256": "99c0af846b7014be9520b5ade3fe603a89b8f81b4389a8656ebb61b952fb1c29"
     }
   }
 }
